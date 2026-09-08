@@ -1,4 +1,4 @@
-import type { MarketQuote } from "@/lib/market/types"
+import type { MarketQuote, MarketRow } from "@/lib/market/types"
 
 /*
   MOCK sample quotes for development ONLY. These are NOT live and NOT real
@@ -72,3 +72,51 @@ export const marketQuotes: Record<string, MarketQuote> = {
     status: "delayed",
   },
 }
+
+/* 7-day and 30-day sample changes for the overview table (Zn unavailable). */
+export const marketExtended: Record<
+  string,
+  { change7d: number | null; change30d: number | null }
+> = {
+  Cu: { change7d: 2.4, change30d: -1.1 },
+  Al: { change7d: -0.9, change30d: 3.2 },
+  Ni: { change7d: 1.0, change30d: -6.8 },
+  Zn: { change7d: null, change30d: null },
+  Au: { change7d: 0.5, change30d: 2.1 },
+  Li: { change7d: -3.4, change30d: -8.7 },
+}
+
+/*
+  Pressure-test sample rows (amendment 14): long label, high price, and a
+  double-digit negative move. Clearly indicative sample data, not live.
+*/
+export const marketPressureRows: MarketRow[] = [
+  {
+    slug: "rhodium",
+    name: "Rhodium",
+    symbol: "Rh",
+    category: "Precious metals",
+    price: 4650,
+    currency: "USD",
+    unit: "oz",
+    change24h: -12.4,
+    change7d: -5.1,
+    change30d: 18.6,
+    updatedAt: SAMPLE_ASOF,
+    status: "delayed",
+  },
+  {
+    slug: "ferro-silico-manganese",
+    name: "Ferro-silico-manganese (bulk alloy)",
+    symbol: "FeSiMn",
+    category: "Ferroalloys",
+    price: 1180,
+    currency: "USD",
+    unit: "MT",
+    change24h: 0.2,
+    change7d: -0.4,
+    change30d: 1.1,
+    updatedAt: SAMPLE_ASOF,
+    status: "delayed",
+  },
+]
