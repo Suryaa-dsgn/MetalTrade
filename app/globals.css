@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+  Metal Trading Portal — design tokens.
+  Source of truth: docs/metal-trading-portal-design-system.md
+  Values are authoritative; Tailwind v4 `@theme inline` is the mapping mechanism.
+
+  Light mode is the default and stays the default. `dark:` utilities are kept
+  INERT via the guard below (they only apply under a `.dark` ancestor, which the
+  product never adds). Dark editorial chapters use explicit `bg-mineral` classes,
+  not the `dark` variant.
+*/
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* ---- Fonts (Geist via next/font, wired in app/layout.tsx) ---- */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  /* ---- Semantic colors (Design System §4.3) ---- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-subtle: var(--surface-subtle);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+
+  /* Signal Orange — exposed as a material/trade accent, used sparingly with a
+     semantic reason (never a second dominant brand colour). */
+  --color-orange: var(--orange);
+  --color-orange-soft: var(--orange-soft);
+
+  --color-mineral: var(--mineral);
+  --color-mineral-2: var(--mineral-2);
+  --color-mineral-foreground: var(--mineral-foreground);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* shadcn semantic aliases (mapped onto Design System tokens).
+     NOTE: shadcn treats `--muted` as a SURFACE and `--muted-foreground` as TEXT.
+     The Design System uses `--muted` as a muted TEXT colour; to avoid a clash we
+     keep shadcn's surface meaning for `bg-muted` and use `text-muted-foreground`
+     for muted text (Design System `--muted-foreground`). */
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-secondary: var(--surface-muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--surface-muted);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--primary-foreground);
+
+  /* Chart series (Design System §13.1): cobalt primary, graphite, orange
+     selected, info, muted. No rainbow/neon palettes. */
+  --color-chart-1: var(--primary);
+  --color-chart-2: var(--mineral-2);
+  --color-chart-3: var(--orange);
+  --color-chart-4: var(--info);
+  --color-chart-5: var(--muted-foreground);
+
+  /* ---- Radius (Design System §7.1) ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+
+  /* ---- Type scale (Design System §5.2) ---- */
+  --text-display-xl: 4rem; /* 64px */
+  --text-display-xl--line-height: 0.98;
+  --text-display-xl--font-weight: 600;
+  --text-display-l: 3.25rem; /* 52px */
+  --text-display-l--line-height: 1.02;
+  --text-display-l--font-weight: 600;
+  --text-h1: 2.75rem; /* 44px */
+  --text-h1--line-height: 1.05;
+  --text-h1--font-weight: 600;
+  --text-h2: 2.25rem; /* 36px */
+  --text-h2--line-height: 1.1;
+  --text-h2--font-weight: 600;
+  --text-h3: 1.625rem; /* 26px */
+  --text-h3--line-height: 1.18;
+  --text-h3--font-weight: 600;
+  --text-h4: 1.25rem; /* 20px */
+  --text-h4--line-height: 1.25;
+  --text-h4--font-weight: 600;
+  --text-body-l: 1.125rem; /* 18px */
+  --text-body-l--line-height: 1.55;
+  --text-body: 1rem; /* 16px */
+  --text-body--line-height: 1.55;
+  --text-body-s: 0.875rem; /* 14px */
+  --text-body-s--line-height: 1.45;
+  --text-label: 0.6875rem; /* 11px */
+  --text-label--line-height: 1.2;
+  --text-label--font-weight: 600;
+  --text-price-xl: 2.75rem; /* 44px */
+  --text-price-xl--line-height: 1;
+  --text-price-xl--font-weight: 600;
+  --text-price-l: 1.875rem; /* 30px */
+  --text-price-l--line-height: 1.05;
+  --text-price-l--font-weight: 600;
+
+  /* ---- Letter spacing (Design System §5.2) ---- */
+  --tracking-tight: -0.035em;
+  --tracking-normal: -0.01em;
+  --tracking-label: 0.12em;
+
+  /* ---- Motion easing (Design System §16) ---- */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- Elevation (Design System §7.3) — restrained, not on every card ---- */
+  --shadow-sm: 0 1px 2px hsl(210 22% 14% / 0.06);
+  --shadow-md: 0 8px 24px hsl(210 22% 14% / 0.08);
+  --shadow-lg: 0 20px 48px hsl(210 22% 14% / 0.12);
+}
+
+:root {
+  /* Core surfaces */
+  --background: hsl(42 24% 97%); /* warm paper */
+  --foreground: hsl(210 22% 14%); /* graphite ink */
+  --surface: hsl(0 0% 100%); /* white card */
+  --surface-muted: hsl(42 18% 94%); /* quiet panel */
+  --surface-subtle: hsl(42 15% 91%); /* table hover / input fill */
+
+  /* Brand */
+  --primary: hsl(221 72% 49%); /* #2457D6 industrial cobalt */
+  --primary-foreground: hsl(0 0% 100%);
+  --primary-hover: hsl(224 71% 40%); /* #1E40AF */
+  --primary-soft: hsl(220 86% 94%); /* pale cobalt wash */
+
+  /* Material / movement accent (Signal Orange) */
+  --orange: hsl(20 75% 53%); /* #E26D2D */
+  --orange-soft: hsl(20 75% 93%);
+
+  /* Editorial darks */
+  --mineral: hsl(210 28% 16%); /* #1D2A35 */
+  --mineral-2: hsl(204 25% 22%); /* #2A3C49 */
+  --mineral-foreground: hsl(42 24% 97%);
+
+  /* Borders / muted text */
+  --border: hsl(210 14% 84%);
+  --border-strong: hsl(210 14% 70%);
+  --input: hsl(210 14% 78%);
+  --muted-foreground: hsl(210 12% 40%);
+
+  /* Semantic status */
+  --positive: hsl(151 55% 30%); /* #23784E */
+  --positive-soft: hsl(148 43% 91%);
+  --negative: hsl(4 64% 43%); /* #B33E31 */
+  --negative-soft: hsl(5 52% 92%);
+  --warning: hsl(38 82% 36%); /* #A86D10 */
+  --warning-soft: hsl(39 73% 91%);
+  --info: hsl(199 68% 34%); /* #1B6D92 */
+  --info-soft: hsl(199 50% 91%);
+
+  /* Focus */
+  --ring: hsl(174 67% 28%);
+
+  /* shadcn `--destructive` base var → Design System negative (used by
+     `bg-destructive` and the Button destructive variant). */
+  --destructive: var(--negative);
+
+  /* shadcn base var (used by its calc + Base UI radius refs) = md */
+  --radius: 10px;
+
+  /* Containers (Design System §6.1) */
+  --container-max: 1440px;
+  --container-reading: 720px;
+
+  /* Motion durations (Design System §16) */
+  --duration-fast: 120ms;
+  --duration-standard: 180ms;
+  --duration-slow: 320ms;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), "SF Pro Display", "SF Pro Text", Inter,
+      ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Visible focus for plain interactive elements. Uses `:where()` (zero
+     specificity) so component-level `outline-none` + ring styles win. */
+  :where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Respect reduced motion (Design System §16). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
