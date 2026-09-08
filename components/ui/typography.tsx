@@ -31,9 +31,11 @@ function make(
 }
 
 // Hero / display — large editorial only.
+// Scales gradually (Design System §6.4): H1 on phones → Display L → Display XL,
+// so an oversized headline never pushes the value proposition below the fold.
 export const Display = make(
   "h1",
-  "text-display-l tracking-tight text-balance lg:text-display-xl",
+  "text-h1 tracking-tight text-balance sm:text-display-l lg:text-display-xl",
   "Display"
 )
 
