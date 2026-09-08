@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Container } from "@/components/layout/container"
 import { Section } from "@/components/layout/section"
 import { Button } from "@/components/ui/button"
+import { Breadcrumb } from "@/components/ui/breadcrumb"
 import {
   Body,
   BodyS,
@@ -526,6 +527,15 @@ export default function StyleGuidePage() {
           gutters; <code>Section</code> sets vertical rhythm and surface. This
           band and the mineral band below are both <code>Section</code>s.
         </Body>
+
+        <H4 className="mt-8 mb-3">Breadcrumb</H4>
+        <Breadcrumb
+          items={[
+            { label: "Markets", href: "/markets" },
+            { label: "Copper", href: "/markets/copper" },
+            { label: "Specifications" },
+          ]}
+        />
       </Section>
       <Section surface="mineral" spacing="loose">
         <Label className="text-mineral-foreground/70">Editorial chapter</Label>
