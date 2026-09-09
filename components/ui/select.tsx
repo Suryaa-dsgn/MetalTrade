@@ -23,6 +23,8 @@ export function Select({
   ariaLabel,
   id,
   className,
+  invalid,
+  describedBy,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -30,6 +32,8 @@ export function Select({
   ariaLabel: string
   id?: string
   className?: string
+  invalid?: boolean
+  describedBy?: string
 }) {
   const items = Object.fromEntries(options.map((o) => [o.value, o.label]))
 
@@ -42,8 +46,10 @@ export function Select({
       <SelectPrimitive.Trigger
         id={id}
         aria-label={ariaLabel}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={describedBy}
         className={cn(
-          "inline-flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 text-body-s text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+          "inline-flex h-9 min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 text-body-s text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-3 aria-[invalid=true]:ring-destructive/20",
           className
         )}
       >
