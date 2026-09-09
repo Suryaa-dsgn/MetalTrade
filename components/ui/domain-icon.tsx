@@ -13,6 +13,12 @@ import {
   ClipboardText,
   Path,
   Handshake,
+  Package,
+  Train,
+  AirplaneTilt,
+  Stamp,
+  ShieldCheck,
+  MapPin,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { cn } from "@/lib/utils"
@@ -64,3 +70,9 @@ export const AssayIcon = domainIcon(Flask, "Assay")
 export const DocumentationIcon = domainIcon(ClipboardText, "Documentation")
 export const ProcessIcon = domainIcon(Path, "Process")
 export const CounterpartyIcon = domainIcon(Handshake, "Counterparty")
+export const CollectionIcon = domainIcon(Package, "Collection")
+export const RailFreightIcon = domainIcon(Train, "RailFreight")
+export const AirFreightIcon = domainIcon(AirplaneTilt, "AirFreight")
+export const CustomsIcon = domainIcon(Stamp, "Customs")
+export const InsuranceIcon = domainIcon(ShieldCheck, "Insurance")
+export const TrackingIcon = domainIcon(MapPin, "Tracking")
