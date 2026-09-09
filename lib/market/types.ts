@@ -5,7 +5,15 @@ import type { ImageAsset } from "@/lib/assets/types"
   `MarketQuote` (per CLAUDE.md). `change24h` is a percentage. Null values render
   as an em dash — never a fake zero (Design System §13.5).
 */
-export type MarketStatus = "live" | "delayed" | "historical" | "unavailable"
+// Quote status (Blueprint §9) — distinct from feed `Freshness` and from
+// historical-data `HistoryState`. A quote may be available while history is not
+// (and vice versa).
+export type MarketStatus =
+  | "live"
+  | "delayed"
+  | "eod"
+  | "stale"
+  | "unavailable"
 
 export type MarketQuote = {
   symbol: string
@@ -59,3 +67,41 @@ export type MarketRow = {
     - stale   : exceeded the expected freshness threshold (attention, not alarm)
 */
 export type Freshness = "live" | "delayed" | "stale"
+
+/* ---- Metal detail (Phase 5) ---- */
+
+export type ChartRange = "1D" | "7D" | "1M" | "3M" | "1Y" | "5Y"
+export const CHART_RANGES: ChartRange[] = ["1D", "7D", "1M", "3M", "1Y", "5Y"]
+
+/** A single historical point. `timestamp` is ISO 8601 UTC (explicit name). */
+export type HistoryPoint = { timestamp: string; value: number }
+
+/** Historical-data availability — separate from the quote status. */
+export type HistoryState = "ready" | "loading" | "no-data" | "stale" | "error"
+
+/** Coherent market summary metrics (null where not meaningful/licensed). */
+export type MetalStatistics = {
+  open: number | null
+  previousClose: number | null
+  dayLow: number | null
+  dayHigh: number | null
+  week52Low: number | null
+  week52High: number | null
+  currency: string
+  unit: string // native unit these canonical values are expressed in
+}
+
+/** A physical specification field. Value null → shown as a placeholder. */
+export type SpecField = { label: string; value: string | null; note?: string }
+
+/** Editorial + physical detail for a metal (Copper only in this phase). */
+export type MetalDetail = {
+  slug: string
+  provider: string // placeholder until a licensed feed is connected
+  supportedRanges: ChartRange[] // range availability comes from config, not the chart
+  statistics: MetalStatistics
+  specifications: SpecField[]
+  applications: string[]
+  regionsNote: string
+  pricingFactors: string[]
+}

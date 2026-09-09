@@ -17,10 +17,16 @@ const config: Record<Status, { label: string; badge: string; dot: string }> = {
     badge: "bg-info-soft text-info",
     dot: "bg-info",
   },
-  historical: {
-    label: "Historical",
+  eod: {
+    label: "End of day",
     badge: "bg-surface-subtle text-muted-foreground",
     dot: "bg-muted-foreground",
+  },
+  stale: {
+    // Attention, not alarm — amber, never red (Design System §13.4).
+    label: "Stale",
+    badge: "bg-warning-soft text-warning",
+    dot: "bg-warning",
   },
   unavailable: {
     label: "Unavailable",
