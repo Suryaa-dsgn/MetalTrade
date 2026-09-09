@@ -9,13 +9,20 @@ import { siteConfig } from "@/data/config/site"
   provided, keeping this as the single swap point. `siteConfig.name` is a
   working title pending client approval.
 */
-export function Logo({ className }: { className?: string }) {
+export function Logo({
+  className,
+  tone,
+}: {
+  className?: string
+  tone?: "light"
+}) {
   return (
     <Link
       href="/"
       aria-label={`${siteConfig.name} — home`}
       className={cn(
-        "inline-flex items-center rounded-sm text-h4 font-semibold tracking-tight text-foreground",
+        "inline-flex items-center rounded-sm text-h4 font-semibold tracking-tight",
+        tone === "light" ? "text-mineral-foreground" : "text-foreground",
         className
       )}
     >

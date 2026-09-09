@@ -15,14 +15,32 @@ import { isActivePath, primaryCta, primaryNav } from "@/data/config/navigation"
   Modal (default): focus is trapped, Esc closes, and focus returns to the
   trigger. No swipe/snap needed, so Dialog rather than Drawer.
 */
-export function MobileNav({ className }: { className?: string }) {
+export function MobileNav({
+  className,
+  tone,
+}: {
+  className?: string
+  tone?: "light"
+}) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
+      {/* `tone="light"` recolors only the trigger while it sits over the hero;
+          the opened Sheet keeps its normal accessible surface (amendment 12). */}
       <Dialog.Trigger
-        render={<Button variant="ghost" size="icon" aria-label="Open menu" />}
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Open menu"
+            className={cn(
+              tone === "light" &&
+                "text-mineral-foreground hover:bg-mineral-foreground/10 hover:text-mineral-foreground"
+            )}
+          />
+        }
         className={className}
       >
         <MenuIcon />

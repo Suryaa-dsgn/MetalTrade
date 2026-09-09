@@ -22,6 +22,9 @@ const buttonVariants = cva(
         // Lower-emphasis action on a light surface.
         outline:
           "border-border bg-transparent text-foreground hover:bg-surface-muted",
+        // Secondary action on a dark (mineral) surface, e.g. the hero.
+        outlineInverse:
+          "border-mineral-foreground/40 bg-transparent text-mineral-foreground hover:bg-mineral-foreground/10 focus-visible:ring-mineral-foreground/40",
         // Navigation or utility action.
         ghost: "bg-transparent text-foreground hover:bg-surface-muted",
         // Irreversible or high-risk action only.

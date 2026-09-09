@@ -10,8 +10,15 @@ import { isActivePath, primaryNav } from "@/data/config/navigation"
   Desktop primary navigation. Active item = Industrial Cobalt text + a 2px
   cobalt underline (Design System §8.2) — never a purple or filled pill.
 */
-export function MainNav({ className }: { className?: string }) {
+export function MainNav({
+  className,
+  tone,
+}: {
+  className?: string
+  tone?: "light"
+}) {
   const pathname = usePathname()
+  const light = tone === "light"
 
   return (
     <nav aria-label="Primary" className={className}>
@@ -25,14 +32,21 @@ export function MainNav({ className }: { className?: string }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative inline-flex h-9 items-center rounded-sm px-3 text-body-s font-medium transition-colors",
-                  active ? "text-primary" : "text-foreground/80 hover:text-primary"
+                  light
+                    ? active
+                      ? "text-mineral-foreground"
+                      : "text-mineral-foreground/80 hover:text-mineral-foreground"
+                    : active
+                      ? "text-primary"
+                      : "text-foreground/80 hover:text-primary"
                 )}
               >
                 {item.label}
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "absolute inset-x-3 -bottom-1 h-0.5 rounded-pill bg-primary transition-opacity",
+                    "absolute inset-x-3 -bottom-1 h-0.5 rounded-pill transition-opacity",
+                    light ? "bg-mineral-foreground" : "bg-primary",
                     active ? "opacity-100" : "opacity-0"
                   )}
                 />
