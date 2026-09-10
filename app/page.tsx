@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { getMarketOverview } from "@/lib/market/mock-adapter"
+import { getMarketOverview } from "@/lib/market/service"
 import { homeAssets } from "@/lib/assets/home"
 import { Section } from "@/components/layout/section"
 import { SectionHeading } from "@/components/editorial/section-heading"
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 }
 
 export default async function HomePage() {
-  const metals = await getMarketOverview()
+  const { data: metals } = await getMarketOverview()
 
   return (
     <>

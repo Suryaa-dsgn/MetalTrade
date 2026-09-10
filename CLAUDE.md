@@ -28,6 +28,17 @@ Detect the package manager from the lockfile (`pnpm-lock.yaml`, `package-lock.js
 
 Install shadcn primitives only when the current phase needs them, not all at once. Extend styling through semantic CSS variables, Tailwind utilities, and `class-variance-authority`. Do not fork accessible behaviour.
 
+## Integration configuration (Phase 10 seams)
+
+External integrations sit behind provider seams with mock / no-op / disabled defaults; the app runs with no env set. Selectors are validated (Zod) in a server-only module `lib/config/env.ts` (`import "server-only"`); an unknown value warns and falls back to the default. Never read provider config or secrets from a client module; secrets live server-side only and are never committed (`.env.example` holds names/placeholders only — see the README table).
+
+- `MARKET_PROVIDER` (default `mock`): `MarketProvider` (`lib/market/provider.ts`) owns quotes/history only; `ContentSource` (`lib/content/source.ts`) owns catalogue/editorial; the market service (`lib/market/service.ts`) composes them and adds caching, per-feed freshness (`lib/market/freshness.ts`), and failover. Only successful payloads are cached; on failure serve last-known-good marked stale, else uncached unavailable. Reads return `ReadMeta` (no raw errors to the client). Sample data stays labelled indicative / not live.
+- `ENQUIRY_SINK` (default `log`): delivery seam for `submitEnquiry`; the log sink records redacted metadata only (no PII). `disabled` returns a submission error. No email/CRM.
+- `UPLOAD_PROVIDER` (default `disabled`): no storage, no presign endpoint; the attachment UI stays a shell.
+- `CONTENT_SOURCE` (default `static`); `MARKET_SIMULATE_FAILURE=1` exercises the degraded market UI.
+
+Gating: no live market feed, email/CRM, storage, or CMS SaaS is connected until I approve the specific provider and set its secrets myself.
+
 ## Icons (this overrides the Blueprint's Lucide instruction and its no-mixing rule)
 
 Two libraries, split strictly by role. One weight each. No mixing inside a role.

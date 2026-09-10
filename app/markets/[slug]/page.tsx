@@ -3,8 +3,8 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import type { HistoryState } from "@/lib/market/types"
-import { metals } from "@/data/mock/metals"
-import { getMetalBySlug, getMetalDetail } from "@/lib/market/mock-adapter"
+import { getContentSource } from "@/lib/content/source"
+import { getMetalBySlug, getMetalDetail } from "@/lib/market/service"
 import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 import { Section } from "@/components/layout/section"
 import { SectionHeading } from "@/components/editorial/section-heading"
@@ -20,7 +20,8 @@ import { MetalMarketPanel } from "@/components/market/metal-market-panel"
 import { SpecTable } from "@/components/market/spec-table"
 import { BenchmarkDisclaimer } from "@/components/market/benchmark-disclaimer"
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const metals = await getContentSource().getMetals()
   return metals.map((m) => ({ slug: m.slug }))
 }
 
@@ -30,7 +31,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const metal = await getMetalBySlug(slug)
+  const { data: metal } = await getMetalBySlug(slug)
   if (!metal) return { title: "Metal" }
   return {
     title: metal.name,
@@ -65,10 +66,10 @@ export default async function MetalDetailPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const { slug } = await params
-  const metal = await getMetalBySlug(slug)
+  const { data: metal } = await getMetalBySlug(slug)
   if (!metal) notFound()
 
-  const detailData = await getMetalDetail(slug)
+  const { data: detailData } = await getMetalDetail(slug)
   const q = metal.quote
 
   const crumbs = [

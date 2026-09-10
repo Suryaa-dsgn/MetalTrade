@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import type { Freshness } from "@/lib/market/types"
-import { getMarketTable } from "@/lib/market/mock-adapter"
+import { getMarketTable } from "@/lib/market/service"
 import { parseMarketFilters } from "@/lib/market/filters"
 import { formatUpdatedAtUTC } from "@/lib/formatters"
 import { Section } from "@/components/layout/section"
@@ -25,7 +25,7 @@ export default async function MarketsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const sp = await searchParams
-  const rows = await getMarketTable()
+  const { data: rows, meta } = await getMarketTable()
   const categories = [...new Set(rows.map((r) => r.category))]
   const filters = parseMarketFilters(sp, categories)
 
@@ -41,7 +41,9 @@ export default async function MarketsPage({
       : undefined
   const explorerForced =
     forced === "loading" || forced === "error" ? forced : undefined
-  const freshness: Freshness = forced === "stale" ? "stale" : "delayed"
+  // A provider failure degrades the feed to last-known/unavailable (amendment 3).
+  const freshness: Freshness =
+    forced === "stale" || meta.degraded ? "stale" : "delayed"
 
   const latestUpdated =
     rows.find((r) => r.updatedAt)?.updatedAt ?? null
@@ -53,6 +55,16 @@ export default async function MarketsPage({
         title="Reference prices and historical movement"
         lead="Benchmarks give market context — they are not a transaction price. Physical-metal pricing is negotiated per specification, quantity, origin, destination, and terms."
       />
+      {meta.degraded ? (
+        <div
+          role="status"
+          className="mt-6 rounded-lg border border-border bg-surface-muted px-4 py-3 text-body-s text-muted-foreground"
+        >
+          The market data source is temporarily unavailable. Showing the last
+          known values where available, otherwise em dashes — never a fabricated
+          figure.
+        </div>
+      ) : null}
       <MarketFreshness
         className="mt-6"
         freshness={freshness}

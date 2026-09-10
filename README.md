@@ -20,6 +20,37 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Integration configuration (Phase 10)
+
+External integrations are wired behind **provider seams** with mock / no-op /
+disabled defaults, so the app runs fully with **no environment configuration**.
+No live provider is connected in this build — each is gated on explicit approval
+(see `CLAUDE.md`). Copy `.env.example` to `.env.local` only when you connect an
+approved provider; keep real secrets out of the repo.
+
+Selectors are validated against explicit enums in a **server-only** config module
+(`lib/config/env.ts`, guarded by `import "server-only"`); an unknown value logs a
+warning and falls back to the default. No client module reads provider config or
+secrets.
+
+| Env var | Supported (default) | Behaviour today |
+|---|---|---|
+| `MARKET_PROVIDER` | `mock` (default) | Sample quotes/history behind `MarketProvider`; the market **service** (`lib/market/service.ts`) adds caching, per-feed freshness, and failover. Values stay labelled indicative / not live. |
+| `ENQUIRY_SINK` | `log` \| `disabled` (default `log`) | `log` records **redacted** operational metadata only (intent, DEMO reference, timestamp, result) — never PII/message content. `disabled` returns a submission error. No email/CRM. |
+| `UPLOAD_PROVIDER` | `disabled` (default) | Upload storage is off; there is **no presign endpoint**. The attachment UI is a non-uploading shell. |
+| `CONTENT_SOURCE` | `static` (default) | Catalogue + metal-detail content from in-repo fixtures via `ContentSource`. Kept separate from market data. |
+| `MARKET_SIMULATE_FAILURE` | unset (`1`/`true` to enable) | Dev/QA only: forces the market provider-failure path to exercise degraded UI. |
+
+**Failure behaviour:** only successful provider payloads are cached. On failure
+the service serves last-known-good data marked *stale* (original timestamps kept)
+when available, otherwise an **uncached** unavailable result (em dashes, never a
+fabricated figure). Reads return a small `ReadMeta` (`provider`, `source`,
+`fetchedAt`, `degraded`, safe `errorCode`) — raw provider errors never reach the
+client.
+
+**Intentionally unconnected (until approved + configured):** a live market feed,
+email/CRM delivery, file storage, and any CMS SaaS.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

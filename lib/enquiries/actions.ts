@@ -1,15 +1,15 @@
 "use server"
 
 import { enquirySchemas, type EnquiryIntent } from "@/lib/validation/enquiry"
+import { getEnquirySink } from "@/lib/enquiries/sink"
 
 /*
-  Mocked enquiry submission (amendment 18: strictly mocked — no CRM, email,
-  upload storage, bot protection, analytics, or routing).
-
-  The result is a discriminated union with SEPARATE validation and submission
-  errors (amendment 3), so a Phase-10 CRM/email integration can replace the body
-  without changing the client forms. Attachments are never received here
-  (amendment 4). References are clearly non-production DEMO codes (amendment 5).
+  Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
+  server-side sink (Phase 10). The default `log` sink records redacted metadata
+  only — no live email/CRM is connected. The discriminated union keeps SEPARATE
+  validation and submission errors, so swapping in a real sink never changes the
+  client forms. Attachments are never received here. References are clearly
+  non-production DEMO codes.
 */
 export type EnquiryResult =
   | { ok: true; referenceId: string }
@@ -52,5 +52,24 @@ export async function submitEnquiry(
   // Simulate just enough latency to exercise the pending UI (amendment 15).
   await new Promise((resolve) => setTimeout(resolve, 700))
 
-  return { ok: true, referenceId: demoReference(intent) }
+  const referenceId = demoReference(intent)
+  const delivery = await getEnquirySink().deliver({
+    intent,
+    referenceId,
+    values: parsed.data,
+    submittedAt: new Date().toISOString(),
+    hasAttachments: false, // attachments are never transmitted in this build
+  })
+
+  if (!delivery.ok) {
+    // Never surface the raw sink error; give a safe, retryable message.
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        "We couldn't submit your enquiry just now. Please try again in a moment.",
+    }
+  }
+
+  return { ok: true, referenceId }
 }
