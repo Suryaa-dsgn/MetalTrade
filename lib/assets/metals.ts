@@ -10,9 +10,9 @@ import { UNVERIFIED_LICENSE, type ImageAsset } from "@/lib/assets/types"
   describes ONLY what is visibly in frame — it never asserts metal grade, purity,
   form, origin, or that the image is the client's own material (amendment 2).
 
-  `lithium` stays unavailable: the supplied file is lavender/purple and cannot
-  ship (no-purple guardrail); its slot keeps the neutral placeholder.
-  TODO(client): supply a cleared, non-purple lithium reference image.
+  `lithium` was wired in Phase 9A.2 once a cleared, silver-grey replacement
+  arrived (the earlier lavender/purple file was rejected under the no-purple
+  guardrail and archived).
 */
 export const metalAssets = {
   copper: {
@@ -63,7 +63,10 @@ export const metalAssets = {
   lithium: {
     id: "metal-lithium",
     src: "/images/metals/lithium-specimen.webp",
-    alt: "Lithium material reference — cleared image required.",
-    available: false,
+    alt: "A silver-grey metallic specimen with small flaked fragments on a light surface.",
+    usage: "illustrative",
+    license: UNVERIFIED_LICENSE,
+    focalPoint: { x: 50, y: 50 },
+    available: true,
   },
 } satisfies Record<string, ImageAsset>

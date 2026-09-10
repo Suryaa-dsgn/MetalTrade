@@ -37,6 +37,7 @@ export function LogisticsHero() {
           className="aspect-[4/3] lg:aspect-[5/4]"
           sizes="(min-width: 1024px) 50vw, 100vw"
           priority
+          hoverZoom
         />
       </Container>
     </section>

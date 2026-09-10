@@ -230,3 +230,36 @@
     }
   }
 }
+
+/*
+  Editorial image hover zoom (Phase 9A.2). CSS-only, so AssetImage stays a
+  server component with no JS mouse handlers. Only the inner image
+  (`.asset-zoom-target`) scales; its wrapper is `overflow-hidden`, so the frame
+  geometry is fixed and surrounding layout never shifts. The trigger is a
+  `.asset-zoom` ancestor — the image's own wrapper (standalone editorial images)
+  or an interactive card (e.g. MetalCard), so card hover/focus zooms the image.
+  Hover is gated to fine pointers so touch users get no stuck state; reduced
+  motion removes the transform entirely.
+*/
+@layer components {
+  .asset-zoom-target {
+    transform: scale(1);
+    transition: transform 350ms var(--ease-standard);
+    will-change: transform;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .asset-zoom:hover .asset-zoom-target,
+    .asset-zoom:focus-within .asset-zoom-target {
+      transform: scale(1.035);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .asset-zoom-target {
+      transition: none;
+    }
+    .asset-zoom:hover .asset-zoom-target,
+    .asset-zoom:focus-within .asset-zoom-target {
+      transform: none;
+    }
+  }
+}

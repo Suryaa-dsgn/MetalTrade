@@ -18,11 +18,13 @@ export function MetalCard({ metal }: { metal: MetalSummary }) {
   const q = metal.quote
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface">
+    <article className="asset-zoom flex flex-col overflow-hidden rounded-lg border border-border bg-surface transition-shadow hover:shadow-md focus-within:shadow-md">
       <AssetImage
         asset={metal.image}
         className="aspect-[4/3] rounded-none"
         sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        hoverZoom
+        zoomTrigger="card"
       />
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-center gap-2">

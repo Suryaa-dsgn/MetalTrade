@@ -56,6 +56,7 @@ export function ValueProposition({
         asset={image}
         className={cn("aspect-[4/3]", imageSide === "start" && "lg:order-1")}
         sizes="(min-width: 1024px) 50vw, 100vw"
+        hoverZoom
       />
     </div>
   )

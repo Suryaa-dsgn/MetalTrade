@@ -25,15 +25,19 @@ depicting the client's real operation, material, grade, or a verified fact.
 | `metals/zinc.png` | `public/images/metals/zinc-specimen.webp` | Raw specimen (neutral studio background) |
 | `metals/Gold.png` | `public/images/metals/gold-specimen.webp` | Raw specimen |
 | `editorial/logistics-port-containers.png` | `public/images/editorial/logistics-port-containers.webp` | Generic container port; passed the baked-in-text audit |
+| `editorial/source-material-yard.jpg` | `public/images/editorial/source-material-yard.webp` | Phase 9A.2 replacement — metal-mill interior (crane lifting a steel coil, rows of coils). Passed the audit; only a generic "AVISO" safety sign, no fabricated specs. Feeds supplier proposition + company hero. |
+| `metals/Lithium.png` (silver replacement) | `public/images/metals/lithium-specimen.webp` | Phase 9A.2 replacement — silver-grey metallic specimen on a light background. No purple. Wired to the lithium card. |
+| `destination/manufacturing-line.jpg` | `public/images/destination/manufacturing-line.webp` | Phase 9A.2 replacement — steel-coil mill with workers on a production line. Passed the audit (no fabricated specs/QR/branding). Wired to the buyer proposition. |
 
 ## EXCLUDED from production (audit failures — kept here for reference only)
 
 | Original | Reason excluded |
 |---|---|
-| `destination/manufacturing-line.png` | Fabricated spec placard baked into the image (Grade A356 / Purity ≥ 99.7% / Weight 1000 kg / Batch AI-2407-18), a "Traceable Supply" QR code, and slogan walls — reads as invented certification/traceability. Also a port scene, not a manufacturing line. |
-| `metals/Lithium.png` | Lavender/purple crystal — violates the no-purple visual guardrail. |
-| `editorial/source-material-yard.png` | Smokestack refinery emitting plumes — off-message for a responsible-sourcing narrative; also not a "material yard". |
+| `destination/manufacturing-line.png` | Fabricated spec placard baked into the image (Grade A356 / Purity ≥ 99.7% / Weight 1000 kg / Batch AI-2407-18), a "Traceable Supply" QR code, and slogan walls — reads as invented certification/traceability. **Superseded in Phase 9A.2 by the accepted `manufacturing-line.jpg` above.** |
+| `metals/Lithium-v1-purple-REJECTED.png` | Lavender/purple crystal — violates the no-purple visual guardrail. **Superseded in Phase 9A.2 by the accepted silver `Lithium.png` above.** |
+| `editorial/source-material-yard.png` (original Phase 9 file) | Smokestack refinery emitting plumes — off-message for responsible sourcing; not a "material yard". Superseded in Phase 9A.2 by the accepted `source-material-yard.jpg` above. |
 
-Their site slots keep the neutral `AssetPlaceholder`.
-**TODO(client):** supply cleared, on-message replacements for the three excluded
-slots (buyer / supplier / lithium) and confirm rights for the wired images.
+Every editorial/metal image slot is now wired; no `AssetPlaceholder` remains in
+production.
+**TODO(client):** confirm provenance and production usage rights for all wired
+images (currently recorded as UNVERIFIED).
