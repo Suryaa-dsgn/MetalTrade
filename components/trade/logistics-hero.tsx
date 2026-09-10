@@ -20,7 +20,7 @@ export function LogisticsHero() {
           <Display className="mt-4">From source to destination</Display>
           <Lead className="mt-5">
             Coordination of inspection, documentation, freight, customs, and
-            delivery — aligned to each transaction and the agreed Incoterm.
+            delivery, aligned to each transaction and the agreed Incoterm.
           </Lead>
           <div className="mt-8">
             <Link

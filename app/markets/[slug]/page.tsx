@@ -35,7 +35,7 @@ export async function generateMetadata({
   if (!metal) return { title: "Metal" }
   return {
     title: metal.name,
-    description: `Indicative ${metal.name} market benchmark, historical movement, and physical trade context. Development sample data — not a live feed.`,
+    description: `Indicative ${metal.name} market benchmark, historical movement, and physical trade context. Development sample data. Not a live feed.`,
   }
 }
 
@@ -111,8 +111,8 @@ export default async function MetalDetailPage({
             Detailed profile in preparation
           </H3>
           <Body className="mt-2 text-muted-foreground">
-            The full {metal.name} profile — historical chart, statistics, and
-            physical specifications — is being prepared. In the meantime, share a
+            The full {metal.name} profile (historical chart, statistics, and
+            physical specifications) is being prepared. In the meantime, share a
             supply position or a buying requirement and the trade desk will
             respond.
           </Body>

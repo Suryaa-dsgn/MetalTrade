@@ -18,8 +18,8 @@ const UNIT_LABELS: Record<DisplayUnit, string> = {
 
 const CURRENCY_OPTIONS: SelectOption[] = [
   { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR — conversion unavailable", disabled: true },
-  { value: "GBP", label: "GBP — conversion unavailable", disabled: true },
+  { value: "EUR", label: "EUR (conversion unavailable)", disabled: true },
+  { value: "GBP", label: "GBP (conversion unavailable)", disabled: true },
 ]
 
 export function MarketControls({

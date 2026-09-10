@@ -21,7 +21,7 @@ const config: Record<Freshness, { label: string; badge: string; dot: string }> =
     dot: "bg-info",
   },
   stale: {
-    label: "Stale — exceeded freshness threshold",
+    label: "Stale, exceeded freshness threshold",
     badge: "bg-warning-soft text-warning",
     dot: "bg-warning",
   },

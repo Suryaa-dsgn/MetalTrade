@@ -340,7 +340,7 @@ export default function StyleGuidePage() {
             <Label>Body</Label>
             <Body className="mt-1">
               Default reading copy. Trust must come from grade, purity, origin,
-              assay, inspection, documentation, Incoterm, and delivery — not from
+              assay, inspection, documentation, Incoterm, and delivery, not from
               unsupported adjectives.
             </Body>
           </div>
@@ -417,7 +417,7 @@ export default function StyleGuidePage() {
       <Section>
         <H2>Market numeric hierarchy</H2>
         <Body className="mt-2">
-          Token demonstration only — not a market component. Movement always
+          Token demonstration only. Not a market component. Movement always
           pairs colour with an arrow and text, never colour alone.
         </Body>
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -543,7 +543,7 @@ export default function StyleGuidePage() {
           Mineral surface for deliberate dark chapters
         </H2>
         <Body className="mt-3 text-mineral-foreground/80">
-          Warm-white text on a mineral background — an editorial chapter, not a
+          Warm-white text on a mineral background, an editorial chapter, not a
           separate dark theme.
         </Body>
         <div className="mt-6">

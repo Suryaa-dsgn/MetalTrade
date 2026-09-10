@@ -33,4 +33,4 @@ export type ImageAsset = {
   image was produced, only that clearance is outstanding.
 */
 export const UNVERIFIED_LICENSE =
-  "Unverified — client to confirm provenance and production usage rights"
+  "Unverified: client to confirm provenance and production usage rights"

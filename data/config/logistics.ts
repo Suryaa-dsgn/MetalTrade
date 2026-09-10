@@ -67,7 +67,7 @@ export const lifecycleStages: LifecycleStage[] = [
 ]
 
 export const lifecycleNote =
-  "This is a typical trade flow. The exact stages, sequence, and responsibilities vary by material, origin, destination, and agreed commercial terms — not every trade passes through all eight."
+  "This is a typical trade flow. The exact stages, sequence, and responsibilities vary by material, origin, destination, and agreed commercial terms. Not every trade passes through all eight."
 
 // Capability CATEGORIES the trade desk coordinates where agreed — supporting
 // information, not guaranteed services.
@@ -116,7 +116,7 @@ export const capabilities: Capability[] = [
 ]
 
 export const capabilityNote =
-  "Logistics scope is agreed per transaction. Available services, routes, third parties, and responsibilities depend on the specific trade — nothing here is a guaranteed service."
+  "Logistics scope is agreed per transaction. Available services, routes, third parties, and responsibilities depend on the specific trade. Nothing here is a guaranteed service."
 
 export const transportModes: TransportMode[] = [
   { key: "road", label: "Road" },

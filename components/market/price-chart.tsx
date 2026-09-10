@@ -177,7 +177,7 @@ export function PriceChart({
     <div>
       {state === "stale" ? (
         <p className="mb-2 inline-flex items-center gap-1.5 rounded-pill bg-warning-soft px-2.5 py-1 text-body-s font-medium text-warning">
-          Stale — showing last known data from {lastUpdatedLabel}
+          Stale, showing last known data from {lastUpdatedLabel}
         </p>
       ) : null}
       <div className={cn("w-full", CHART_HEIGHT)}>

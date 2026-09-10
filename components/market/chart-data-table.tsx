@@ -50,7 +50,7 @@ export function ChartDataTable({
         >
           <table className="w-full border-collapse text-body-s">
             <caption className="px-4 py-2 text-left text-label uppercase tracking-label text-muted-foreground">
-              Copper benchmark, {range} range — indicative sample data
+              Copper benchmark, {range} range (indicative sample data)
             </caption>
             <thead>
               <tr className="border-y border-border bg-surface-muted">

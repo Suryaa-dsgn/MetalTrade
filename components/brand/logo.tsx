@@ -19,7 +19,7 @@ export function Logo({
   return (
     <Link
       href="/"
-      aria-label={`${siteConfig.name} — home`}
+      aria-label={`${siteConfig.name} home`}
       className={cn(
         "inline-flex items-center rounded-sm text-h4 font-semibold tracking-tight",
         tone === "light" ? "text-mineral-foreground" : "text-foreground",

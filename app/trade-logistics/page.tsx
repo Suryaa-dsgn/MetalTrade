@@ -19,7 +19,7 @@ import { LogisticsFaq } from "@/components/trade/logistics-faq"
 export const metadata: Metadata = {
   title: "Trade & Logistics",
   description:
-    "How physical metal trades move from source to destination — the trade lifecycle, coordination, transport modes, and Incoterms. General references; scope is agreed per transaction.",
+    "How physical metal trades move from source to destination: the trade lifecycle, coordination, transport modes, and Incoterms. General references; scope is agreed per transaction.",
 }
 
 export default function TradeLogisticsPage() {
@@ -32,7 +32,7 @@ export default function TradeLogisticsPage() {
         <SectionHeading
           eyebrow="The trade lifecycle"
           title="A typical trade, stage by stage"
-          lead="Physical metal moves through a coordinated sequence — from confirmation and verification to freight, customs, and delivery."
+          lead="Physical metal moves through a coordinated sequence, from confirmation and verification to freight, customs, and delivery."
         />
         <div className="mt-8">
           <LogisticsTimeline />

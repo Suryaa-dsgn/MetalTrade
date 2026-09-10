@@ -6,7 +6,7 @@ import { BuyerForm } from "@/components/forms/buyer-form"
 export const metadata: Metadata = {
   title: "Source metal",
   description:
-    "Define a buying requirement for the trade desk. Development demo — no CRM or email submission occurs.",
+    "Define a buying requirement for the trade desk. Development demo. No CRM or email submission occurs.",
 }
 
 export default async function BuyingEnquiryPage({

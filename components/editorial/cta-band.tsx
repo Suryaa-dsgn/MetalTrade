@@ -40,7 +40,7 @@ export function CtaBand() {
       <Container className="relative z-10 py-20 md:py-24">
         <div className="max-w-[46ch]">
           <H2 className="text-mineral-foreground">
-            Tell us what you have — or what you need.
+            Tell us what you have or what you need.
           </H2>
           <Lead className="mt-4 text-mineral-foreground/80">
             Share a supply position or a buying requirement and a member of the

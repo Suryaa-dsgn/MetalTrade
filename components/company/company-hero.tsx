@@ -21,7 +21,7 @@ export function CompanyHero() {
             A physical metals intermediary between supply and demand
           </Display>
           <Lead className="mt-5">
-            We connect verified metal supply with qualified demand —
+            We connect verified metal supply with qualified demand,
             coordinating evaluation, documentation, verification, and delivery.
             The site does not execute trades; the trade desk manages each
             transaction.

@@ -152,7 +152,7 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
           <FormSection
             step={2}
             title="Requirement"
-            description="Add specification and terms where known — advanced fields are optional."
+            description="Add specification and terms where known. Advanced fields are optional."
           >
             <SelectField
               name="metal"

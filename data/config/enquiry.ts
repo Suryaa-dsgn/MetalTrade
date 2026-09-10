@@ -22,10 +22,10 @@ export const unitOptions: Option[] = [
 ]
 
 export const incotermOptions: Option[] = [
-  { value: "FOB", label: "FOB — Free On Board" },
-  { value: "CIF", label: "CIF — Cost, Insurance and Freight" },
-  { value: "CFR", label: "CFR — Cost and Freight" },
-  { value: "EXW", label: "EXW — Ex Works" },
+  { value: "FOB", label: "FOB (Free On Board)" },
+  { value: "CIF", label: "CIF (Cost, Insurance and Freight)" },
+  { value: "CFR", label: "CFR (Cost and Freight)" },
+  { value: "EXW", label: "EXW (Ex Works)" },
   { value: "other", label: "Other / to discuss" },
 ]
 
@@ -50,7 +50,7 @@ export const enquiryIntents: EnquiryIntentCard[] = [
     id: "supply",
     title: "I have metal to sell",
     description:
-      "Bring a supply position to qualified demand — material, forms, quantity, and origin.",
+      "Bring a supply position to qualified demand: material, forms, quantity, and origin.",
     href: "/enquire/supply",
     iconKey: "supply",
   },
@@ -58,7 +58,7 @@ export const enquiryIntents: EnquiryIntentCard[] = [
     id: "buying",
     title: "I want to source metal",
     description:
-      "Define a requirement — metal, specification, quantity, and destination.",
+      "Define a requirement: metal, specification, quantity, and destination.",
     href: "/enquire/buying-requirement",
     iconKey: "buying",
   },
@@ -66,7 +66,7 @@ export const enquiryIntents: EnquiryIntentCard[] = [
     id: "logistics",
     title: "I need logistics support",
     description:
-      "Share a route — commodity, origin, destination, and timing to assess feasibility.",
+      "Share a route: commodity, origin, destination, and timing to assess feasibility.",
     href: "/enquire/logistics",
     iconKey: "logistics",
   },

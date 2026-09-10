@@ -165,7 +165,7 @@ export function SupplierForm({ defaultMetal }: { defaultMetal?: string }) {
           <FormSection
             step={2}
             title="Material"
-            description="Add detail where you have it — advanced fields are optional."
+            description="Add detail where you have it. Advanced fields are optional."
           >
             <SelectField
               name="metal"

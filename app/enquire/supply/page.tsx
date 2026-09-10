@@ -6,7 +6,7 @@ import { SupplierForm } from "@/components/forms/supplier-form"
 export const metadata: Metadata = {
   title: "Sell metal",
   description:
-    "Bring a supply position to qualified demand. Development demo — no CRM or email submission occurs.",
+    "Bring a supply position to qualified demand. Development demo. No CRM or email submission occurs.",
 }
 
 export default async function SupplyEnquiryPage({

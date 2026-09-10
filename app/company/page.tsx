@@ -18,7 +18,7 @@ import { ProofPoints } from "@/components/company/proof-points"
 export const metadata: Metadata = {
   title: "Company",
   description:
-    "How the trade desk connects verified metal supply with qualified demand — the operating model, trade assurance, responsible sourcing, and due diligence. Working copy; details confirmed per engagement.",
+    "How the trade desk connects verified metal supply with qualified demand: the operating model, trade assurance, responsible sourcing, and due diligence. Working copy; details confirmed per engagement.",
 }
 
 export default function CompanyPage() {
@@ -31,7 +31,7 @@ export default function CompanyPage() {
         <SectionHeading
           eyebrow="How we work"
           title="Our role in the value chain"
-          lead="A trade desk between qualified supply and qualified demand — evaluating, connecting, and coordinating each transaction."
+          lead="A trade desk between qualified supply and qualified demand, evaluating, connecting, and coordinating each transaction."
         />
         <div className="mt-8">
           <OperatingModel />
@@ -54,7 +54,7 @@ export default function CompanyPage() {
         <SectionHeading
           eyebrow="Trade assurance"
           title="Trust from process and evidence"
-          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery — a sequence applied to each transaction."
+          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery. A sequence applied to each transaction."
         />
         <div className="mt-8">
           <TrustFramework />

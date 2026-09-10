@@ -16,7 +16,7 @@ import { LogisticsPreview } from "@/components/trade/logistics-preview"
 
 export const metadata: Metadata = {
   description:
-    "A physical metals intermediary connecting verified supply with qualified demand — with market benchmarks, material evidence, and logistics coordination.",
+    "A physical metals intermediary connecting verified supply with qualified demand, with market benchmarks, material evidence, and logistics coordination.",
 }
 
 export default async function HomePage() {
@@ -32,7 +32,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="What we trade"
           title="Physical metals across base, precious, and battery categories"
-          lead="Indicative sample benchmarks shown below are for demonstration only — not live prices. Confirmed forms and specifications are reviewed per enquiry."
+          lead="Indicative sample benchmarks shown below are for demonstration only, not live prices. Confirmed forms and specifications are reviewed per enquiry."
         />
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {metals.map((metal) => (
@@ -46,7 +46,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="How the network works"
           title="Source to buyer, with control at every stage"
-          lead="A trade desk sits between qualified supply and qualified demand — coordinating pricing context, documentation, verification, and movement."
+          lead="A trade desk sits between qualified supply and qualified demand, coordinating pricing context, documentation, verification, and movement."
         />
         <div className="mt-8">
           <NetworkFlow />
@@ -58,7 +58,7 @@ export default async function HomePage() {
         <ValueProposition
           eyebrow="For suppliers"
           title="Bring material to qualified demand"
-          lead="Reach screened buyers with market context and a structured commercial review — without exposing your position to a public market."
+          lead="Reach screened buyers with market context and a structured commercial review, without exposing your position to a public market."
           points={[
             "Access to qualified, screened buyer demand",
             "Independent market benchmark context for your material",
@@ -97,7 +97,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="Trade assurance"
           title="Trust from process and evidence"
-          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery — a sequence applied to each transaction."
+          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery. A sequence applied to each transaction."
         />
         <div className="mt-8">
           <TrustFramework />

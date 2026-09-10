@@ -24,7 +24,7 @@ export function AttachmentField() {
       </p>
       <p id="attachment-note" className="mt-1 text-body-s text-muted-foreground">
         Selected files are not uploaded or submitted in this development phase. A
-        secure upload service is added later — do not attach confidential
+        secure upload service is added later. Do not attach confidential
         documents here yet.
       </p>
 

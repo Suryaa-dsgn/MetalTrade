@@ -25,7 +25,7 @@ const enquiryPlaceholder = "Confirmed per enquiry"
 
 export const copperDetailContent: MetalDetailContent = {
   slug: "copper",
-  provider: "Licensed market-data provider — pending connection",
+  provider: "Licensed market-data provider, pending connection",
   supportedRanges: ["1D", "7D", "1M", "3M", "1Y"],
   specifications: [
     { label: "Grade", value: null, note: "Subject to transaction" },

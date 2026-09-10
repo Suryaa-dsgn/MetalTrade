@@ -16,7 +16,7 @@ import { BenchmarkDisclaimer } from "@/components/market/benchmark-disclaimer"
 export const metadata: Metadata = {
   title: "Markets",
   description:
-    "Indicative market benchmarks and historical movement for physical metals. Development sample data — not a live market feed.",
+    "Indicative market benchmarks and historical movement for physical metals. Development sample data. Not a live market feed.",
 }
 
 export default async function MarketsPage({
@@ -53,7 +53,7 @@ export default async function MarketsPage({
       <SectionHeading
         eyebrow="Markets"
         title="Reference prices and historical movement"
-        lead="Benchmarks give market context — they are not a transaction price. Physical-metal pricing is negotiated per specification, quantity, origin, destination, and terms."
+        lead="Benchmarks give market context. They are not a transaction price. Physical-metal pricing is negotiated per specification, quantity, origin, destination, and terms."
       />
       {meta.degraded ? (
         <div
@@ -61,7 +61,7 @@ export default async function MarketsPage({
           className="mt-6 rounded-lg border border-border bg-surface-muted px-4 py-3 text-body-s text-muted-foreground"
         >
           The market data source is temporarily unavailable. Showing the last
-          known values where available, otherwise em dashes — never a fabricated
+          known values where available, otherwise em dashes, never a fabricated
           figure.
         </div>
       ) : null}

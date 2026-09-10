@@ -40,7 +40,7 @@ export function EnquirySuccess({ referenceId }: { referenceId: string }) {
 
       <p className="mt-4 rounded-md border border-warning/25 bg-warning-soft px-3 py-2 text-body-s text-warning">
         This is a development demo. No CRM, email, or trade-desk submission has
-        occurred — the reference above is a non-production DEMO code.
+        occurred. The reference above is a non-production DEMO code.
       </p>
     </div>
   )
