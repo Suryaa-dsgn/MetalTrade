@@ -1,9 +1,10 @@
 "use client"
 
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,9 +19,10 @@ import { Body, H4 } from "@/components/ui/typography"
 
 /*
   Historical price chart (Design System §13). Single restrained cobalt line
-  (~2px), 1px low-contrast grid, muted tabular axes, one tooltip, no gradient /
-  glow / permanent dots / decorative animation. DEVELOPMENT FIXTURE — visibly
-  labelled as indicative sample, never mistakable for real Copper history.
+  (~2px), 1px low-contrast grid, muted tabular axes, one tooltip. A very subtle
+  cobalt area fade sits BEHIND the grid for atmospheric depth (never a solid
+  block); no glow / permanent dots / decorative animation. DEVELOPMENT FIXTURE —
+  visibly labelled as indicative sample, never mistakable for real Copper history.
 
   Understandable without hover via the benchmark text, range controls, textual
   freshness, and the data-table alternative — the tooltip is only an enhancement
@@ -180,10 +182,42 @@ export function PriceChart({
       ) : null}
       <div className={cn("w-full", CHART_HEIGHT)}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+          <ComposedChart
             data={series}
             margin={{ top: 8, right: 12, bottom: 4, left: 4 }}
           >
+            <defs>
+              {/* Decorative vertical fade in the existing cobalt series colour —
+                  faint near the line, fully transparent by the baseline. */}
+              <linearGradient id="priceAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="0%"
+                  stopColor="var(--color-primary)"
+                  stopOpacity={0.16}
+                />
+                <stop
+                  offset="45%"
+                  stopColor="var(--color-primary)"
+                  stopOpacity={0.06}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="var(--color-primary)"
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            </defs>
+            {/* Behind the grid: atmospheric area fade under the price line. */}
+            <Area
+              type="monotone"
+              dataKey="value"
+              baseValue="dataMin"
+              stroke="none"
+              fill="url(#priceAreaGradient)"
+              fillOpacity={1}
+              activeDot={false}
+              isAnimationActive={false}
+            />
             <CartesianGrid
               stroke="var(--color-border)"
               strokeWidth={1}
@@ -218,7 +252,7 @@ export function PriceChart({
               activeDot={{ r: 3 }}
               isAnimationActive={false}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       {sampleTag}
