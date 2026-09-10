@@ -28,6 +28,7 @@ depicting the client's real operation, material, grade, or a verified fact.
 | `editorial/source-material-yard.jpg` | `public/images/editorial/source-material-yard.webp` | Phase 9A.2 replacement — metal-mill interior (crane lifting a steel coil, rows of coils). Passed the audit; only a generic "AVISO" safety sign, no fabricated specs. Feeds supplier proposition + company hero. |
 | `metals/Lithium.png` (silver replacement) | `public/images/metals/lithium-specimen.webp` | Phase 9A.2 replacement — silver-grey metallic specimen on a light background. No purple. Wired to the lithium card. |
 | `destination/manufacturing-line.jpg` | `public/images/destination/manufacturing-line.webp` | Phase 9A.2 replacement — steel-coil mill with workers on a production line. Passed the audit (no fabricated specs/QR/branding). Wired to the buyer proposition. |
+| `editorial/ship-container-ship-source.jpg` | `public/images/editorial/logistics-container-ship.webp` | Aerial container ship at sea. Passed the audit (no fabricated text/QR/branding, no purple). **Low-res source (525×300)** — used only as a darkened, right-weighted atmospheric layer behind the final enquiry CTA (`CtaBand`), decorative (`alt=""`). |
 
 ## EXCLUDED from production (audit failures — kept here for reference only)
 
