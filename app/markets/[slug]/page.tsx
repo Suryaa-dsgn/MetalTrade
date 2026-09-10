@@ -8,7 +8,7 @@ import { getMetalBySlug, getMetalDetail } from "@/lib/market/mock-adapter"
 import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 import { Section } from "@/components/layout/section"
 import { SectionHeading } from "@/components/editorial/section-heading"
-import { AssetPlaceholder } from "@/components/editorial/asset-placeholder"
+import { AssetImage } from "@/components/editorial/asset-image"
 import { Body, H1, H3, Label, Lead } from "@/components/ui/typography"
 import { buttonVariants } from "@/components/ui/button"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
@@ -182,7 +182,11 @@ export default async function MetalDetailPage({
           lead="Specifications are indicative and confirmed per transaction. The trade desk aligns grade, assay, and documentation to each requirement."
         />
         <div className="mt-8 grid gap-8 lg:grid-cols-2 lg:gap-12">
-          <AssetPlaceholder asset={metal.image} className="aspect-[4/3]" />
+          <AssetImage
+            asset={metal.image}
+            className="aspect-[4/3]"
+            sizes="(min-width: 1024px) 50vw, 100vw"
+          />
           <div>
             <div className="flex items-center gap-2">
               <FormsIcon className="size-5 text-muted-foreground" />

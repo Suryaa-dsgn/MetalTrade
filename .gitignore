@@ -42,3 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# retained image originals (reference only; not served, not shipped in git).
+# The README in this folder stays tracked; the large source files do not.
+design/asset-originals/**/*.png
+design/asset-originals/**/*.jpg
+design/asset-originals/**/*.jpeg

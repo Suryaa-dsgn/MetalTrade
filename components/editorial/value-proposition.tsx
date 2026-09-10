@@ -2,7 +2,7 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import type { ImageAsset } from "@/lib/assets/types"
-import { AssetPlaceholder } from "@/components/editorial/asset-placeholder"
+import { AssetImage } from "@/components/editorial/asset-image"
 import { SectionHeading } from "@/components/editorial/section-heading"
 import { buttonVariants } from "@/components/ui/button"
 import { CheckIconGlyph } from "@/components/ui/icon"
@@ -52,9 +52,10 @@ export function ValueProposition({
           </Link>
         </div>
       </div>
-      <AssetPlaceholder
+      <AssetImage
         asset={image}
         className={cn("aspect-[4/3]", imageSide === "start" && "lg:order-1")}
+        sizes="(min-width: 1024px) 50vw, 100vw"
       />
     </div>
   )

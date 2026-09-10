@@ -1,17 +1,19 @@
-import type { ImageAsset } from "@/lib/assets/types"
+import { UNVERIFIED_LICENSE, type ImageAsset } from "@/lib/assets/types"
 
 /*
-  Home page editorial image slots. All `available: false` until licensed files
-  are supplied (Phase 9). The layout renders a neutral `AssetPlaceholder` naming
-  each required `src`. Paths follow the Design System §10.5 convention.
+  Editorial image slots shared across the home, company, and logistics pages.
+  Provenance is kept here (production concern), separate from mock data.
+
+  - `logistics` is wired to a client-supplied port image (illustrative,
+    UNVERIFIED license). `alt` describes only what is in frame — it does not
+    claim the port, ship, or cargo belongs to the client (amendment 2 / 7).
+  - `supplier` and `buyer` stay unavailable: their supplied files were excluded
+    in the Phase 9 audit (a smokestack refinery, off-message for responsible
+    sourcing; and a port scene carrying a fabricated spec placard + QR + slogans
+    baked into the pixels). Their slots keep the neutral placeholder.
+    TODO(client): supply cleared, on-message replacements.
 */
 export const homeAssets = {
-  hero: {
-    id: "home-hero",
-    src: "/images/editorial/hero-industrial-metal.webp",
-    alt: "Industrial metals operation — approved hero imagery required.",
-    available: false,
-  },
   supplier: {
     id: "home-supplier",
     src: "/images/editorial/source-material-yard.webp",
@@ -27,7 +29,10 @@ export const homeAssets = {
   logistics: {
     id: "home-logistics",
     src: "/images/editorial/logistics-port-containers.webp",
-    alt: "Port with freight containers.",
-    available: false,
+    alt: "Aerial view of a container port at dusk, with gantry cranes and a docked container ship.",
+    usage: "illustrative",
+    license: UNVERIFIED_LICENSE,
+    focalPoint: { x: 50, y: 52 },
+    available: true,
   },
 } satisfies Record<string, ImageAsset>

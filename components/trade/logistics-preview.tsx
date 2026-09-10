@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import type { ComponentType } from "react"
-import { AssetPlaceholder } from "@/components/editorial/asset-placeholder"
+import { AssetImage } from "@/components/editorial/asset-image"
 import { SectionHeading } from "@/components/editorial/section-heading"
 import { buttonVariants } from "@/components/ui/button"
 import { ArrowRightIcon } from "@/components/ui/icon"
@@ -37,7 +37,11 @@ const modes: { label: string; Icon: ComponentType<{ className?: string }> }[] = 
 export function LogisticsPreview() {
   return (
     <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-      <AssetPlaceholder asset={homeAssets.logistics} className="aspect-[4/3]" />
+      <AssetImage
+        asset={homeAssets.logistics}
+        className="aspect-[4/3]"
+        sizes="(min-width: 1024px) 50vw, 100vw"
+      />
       <div>
         <SectionHeading
           eyebrow="Trade & logistics"

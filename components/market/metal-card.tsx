@@ -2,7 +2,7 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import type { MetalSummary } from "@/lib/market/types"
-import { AssetPlaceholder } from "@/components/editorial/asset-placeholder"
+import { AssetImage } from "@/components/editorial/asset-image"
 import { PriceChange } from "@/components/market/price-change"
 import { buttonVariants } from "@/components/ui/button"
 import { MetalIcon } from "@/components/ui/domain-icon"
@@ -19,7 +19,11 @@ export function MetalCard({ metal }: { metal: MetalSummary }) {
 
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface">
-      <AssetPlaceholder asset={metal.image} className="aspect-[4/3]" />
+      <AssetImage
+        asset={metal.image}
+        className="aspect-[4/3] rounded-none"
+        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+      />
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-center gap-2">
           <MetalIcon className="size-5 text-muted-foreground" />

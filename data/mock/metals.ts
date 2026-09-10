@@ -1,10 +1,12 @@
 import type { Metal } from "@/lib/market/types"
+import { metalAssets } from "@/lib/assets/metals"
 
 /*
   MOCK metal catalogue for development. Physical forms are general industry
   categories, not a statement of the client's actual offering.
   TODO(client): confirm which metals/forms are genuinely traded before launch.
-  Images are placeholders until licensed files exist in /public/images/metals.
+  Image provenance lives in `lib/assets/metals.ts` (kept out of this throwaway
+  fixture); each `image` references that registry.
 */
 export const metals: Metal[] = [
   {
@@ -15,12 +17,7 @@ export const metals: Metal[] = [
     forms: ["Cathodes", "Concentrates", "Scrap"],
     summary:
       "Refined cathodes, concentrates, and recycled units for wiring, construction, and electrification demand.",
-    image: {
-      id: "metal-copper",
-      src: "/images/metals/copper-cathode-macro.webp",
-      alt: "Close-up of copper cathode surface texture.",
-      available: false,
-    },
+    image: metalAssets.copper,
   },
   {
     slug: "aluminium",
@@ -30,12 +27,7 @@ export const metals: Metal[] = [
     forms: ["Ingots", "Billets", "Scrap"],
     summary:
       "Primary and recycled aluminium in ingot and billet form for transport, packaging, and construction.",
-    image: {
-      id: "metal-aluminium",
-      src: "/images/metals/aluminium-billet-macro.webp",
-      alt: "Stacked aluminium billets.",
-      available: false,
-    },
+    image: metalAssets.aluminium,
   },
   {
     slug: "nickel",
@@ -45,12 +37,7 @@ export const metals: Metal[] = [
     forms: ["Briquettes", "Cathodes", "Concentrates"],
     summary:
       "Class 1 units and concentrates for stainless steel and battery-grade downstream processing.",
-    image: {
-      id: "metal-nickel",
-      src: "/images/metals/nickel-briquette-macro.webp",
-      alt: "Nickel briquettes.",
-      available: false,
-    },
+    image: metalAssets.nickel,
   },
   {
     slug: "zinc",
@@ -60,12 +47,7 @@ export const metals: Metal[] = [
     forms: ["SHG ingots", "Concentrates"],
     summary:
       "Special high-grade ingots and concentrates for galvanising and alloy production.",
-    image: {
-      id: "metal-zinc",
-      src: "/images/metals/zinc-ingot-macro.webp",
-      alt: "Special high-grade zinc ingots.",
-      available: false,
-    },
+    image: metalAssets.zinc,
   },
   {
     slug: "gold",
@@ -75,12 +57,7 @@ export const metals: Metal[] = [
     forms: ["Bullion", "Doré", "Grain"],
     summary:
       "Investment and industrial gold in bullion, doré, and grain, subject to assay and documentation.",
-    image: {
-      id: "metal-gold",
-      src: "/images/metals/gold-bullion-closeup.webp",
-      alt: "Close-up of a gold bullion bar.",
-      available: false,
-    },
+    image: metalAssets.gold,
   },
   {
     slug: "lithium",
@@ -90,11 +67,6 @@ export const metals: Metal[] = [
     forms: ["Carbonate", "Hydroxide", "Spodumene"],
     summary:
       "Carbonate, hydroxide, and spodumene concentrate for battery and energy-storage supply chains.",
-    image: {
-      id: "metal-lithium",
-      src: "/images/metals/lithium-carbonate-detail.webp",
-      alt: "Lithium carbonate powder detail.",
-      available: false,
-    },
+    image: metalAssets.lithium,
   },
 ]

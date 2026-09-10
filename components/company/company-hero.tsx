@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import { Container } from "@/components/layout/container"
-import { AssetPlaceholder } from "@/components/editorial/asset-placeholder"
+import { AssetImage } from "@/components/editorial/asset-image"
 import { buttonVariants } from "@/components/ui/button"
 import { Display, Label, Lead } from "@/components/ui/typography"
 import { ArrowRightIcon } from "@/components/ui/icon"
@@ -33,9 +33,10 @@ export function CompanyHero() {
             </Link>
           </div>
         </div>
-        <AssetPlaceholder
+        <AssetImage
           asset={homeAssets.supplier}
           className="aspect-[4/3] lg:aspect-[5/4]"
+          sizes="(min-width: 1024px) 50vw, 100vw"
         />
       </Container>
     </section>
