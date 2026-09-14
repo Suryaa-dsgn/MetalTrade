@@ -15,6 +15,17 @@ export type MarketStatus =
   | "stale"
   | "unavailable"
 
+/*
+  Per-value provenance — WHERE a displayed number came from. Distinct from
+  freshness (`MarketStatus`) and from feed `Freshness`. This is what lets one
+  page truthfully show a real Gold benchmark next to indicative sample Copper
+  without ever labelling sample data as live.
+    - live        : a real provider benchmark (may still be delayed/EOD/stale)
+    - sample      : indicative development sample data, not live
+    - unavailable : no value (paid-gated, no benchmark, or failed validation)
+*/
+export type DataProvenance = "live" | "sample" | "unavailable"
+
 export type MarketQuote = {
   symbol: string
   name: string
@@ -22,8 +33,14 @@ export type MarketQuote = {
   currency: string // ISO 4217, e.g. "USD"
   unit: string // "MT" | "oz" | "kg"
   change24h: number | null // percent
-  updatedAt: string | null // ISO 8601 UTC
+  updatedAt: string | null // ISO 8601 UTC — provider as-of / source timestamp
   status: MarketStatus
+  /** Where this value came from. Absent is treated as "sample" by legacy
+   *  fixtures; the service always sets it explicitly. */
+  source?: DataProvenance
+  /** When our server fetched this value (distinct from `updatedAt`). Null for
+   *  static sample data. */
+  retrievedAt?: string | null
 }
 
 /** Editorial commodity record for "What we trade" cards and detail pages. */
@@ -61,8 +78,12 @@ export type MarketRow = {
   change24h: number | null
   change7d: number | null
   change30d: number | null
-  updatedAt: string | null // ISO 8601 UTC
+  updatedAt: string | null // ISO 8601 UTC — provider as-of / source timestamp
   status: MarketStatus
+  /** Per-row provenance (see `DataProvenance`). */
+  source?: DataProvenance
+  /** When our server fetched this value (distinct from `updatedAt`). */
+  retrievedAt?: string | null
 }
 
 /*

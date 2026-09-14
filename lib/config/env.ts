@@ -42,13 +42,24 @@ function selector<const T extends readonly [string, ...string[]]>(
     })
 }
 
+/** A secret string: trimmed, and `undefined` when unset/empty. Never logged. */
+const secret = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+
 const schema = z.object({
-  // Only "mock" is implemented; the enum is where an approved provider is added.
-  marketProvider: selector("MARKET_PROVIDER", ["mock"], "mock"),
+  // "mock" (default) and "metalpriceapi" are implemented; the enum is where a
+  // further approved provider is added.
+  marketProvider: selector("MARKET_PROVIDER", ["mock", "metalpriceapi"], "mock"),
   enquirySink: selector("ENQUIRY_SINK", ["log", "disabled"], "log"),
   uploadProvider: selector("UPLOAD_PROVIDER", ["disabled"], "disabled"),
   contentSource: selector("CONTENT_SOURCE", ["static"], "static"),
   marketSimulateFailure: boolFromEnv.catch(false),
+  // Secret for the MetalpriceAPI live provider. Read server-side only; never
+  // exported to callers, never logged, never sent to the client.
+  metalPriceApiKey: secret,
 })
 
 export type ServerConfig = z.infer<typeof schema>
@@ -59,4 +70,5 @@ export const serverConfig: ServerConfig = schema.parse({
   uploadProvider: process.env.UPLOAD_PROVIDER,
   contentSource: process.env.CONTENT_SOURCE,
   marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
+  metalPriceApiKey: process.env.METALPRICE_API_KEY,
 })
