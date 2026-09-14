@@ -1,8 +1,96 @@
-# Market Provider Readiness — MetalpriceAPI
+# Market Provider Readiness
 
 Operational record for the live market-data integration. Verified against real
-API responses on 2026-09-14. Update this file whenever the plan or verified
-capabilities change.
+API responses on 2026-09-14. Update this file whenever a plan, verified
+capability, or commercial term changes.
+
+## Multi-provider architecture (foundation)
+
+```
+UI → MarketService → BenchmarkRegistry → ProviderRouter → provider adapters
+                  ↘ Normalization (Zod-validated) + sanity/units
+                  ↘ MarketObservationRepository (last-known-good; in-memory now)
+                  ↘ provider health + structured events
+```
+
+- **BenchmarkRegistry** (`lib/market/benchmarks.ts`) is the single source of
+  routing truth. Commodity identity (slug) is separate from benchmark identity
+  (`benchmarkId`, e.g. `gold-spot`, `copper-lme-3m`, `brent-crude`).
+- **ProviderRouter** (`providers/router.ts`) maps a provider id to its adapter;
+  not-yet-integrated providers resolve to null and the service falls back.
+- **Repository** (`repository/`) holds last-known-good behind an interface; the
+  in-memory implementation is per instance and does not survive a cold start (no
+  database yet, by design).
+- **Provider health** (`providers/health.ts`) is tracked separately from
+  benchmark availability — a healthy provider can still omit a benchmark.
+- Commercial/licensing terms are NOT in the registry (only a
+  `publicDisplayApproved` gate); they live in this document.
+
+### Provider assignments (approved)
+
+| Commodity | Benchmark | Provider | Status |
+|---|---|---|---|
+| Gold | `gold-spot` | MetalpriceAPI | **live** (Free) |
+| Copper | `copper-lme-3m` (LME Copper 3M) | Metals.Dev | planned — research/verify next |
+| Lead | (separate) | Metals.Dev | planned |
+| Zinc | (separate) | Metals.Dev | planned |
+| Crude Oil | `brent-crude` (**Brent Crude**, named explicitly) | EIA | planned — after Metals.Dev |
+| Lithium | `lithium-proxy` | MetalpriceAPI (paid) | sample; semantic review required |
+| Lead-Zinc (combined slug) | — | — | never one blended number |
+| Tin / Iron Ore / REE / Manganese / Coltan / Barite / Bitumen | — | — | paid-gated / proxy / no benchmark |
+
+Commercial/redistribution terms for Metals.Dev and EIA must be confirmed by the
+client for the chosen plan **before** `publicDisplayApproved` is set.
+
+---
+
+## Metals.Dev (verified — Phase D2)
+
+- **Provider:** `lib/market/providers/metalsdev.ts`. **Plan:** Free (probed 2026-09-14).
+- **Base:** `https://api.metals.dev/v1`. **Auth:** `api_key` query param (server-side only; the URL is never logged).
+- **Endpoint:** `GET /latest?currency=USD&unit=mt` → `{ status:"success", currency:"USD", unit:"mt", metals:{…}, currencies:{…}, timestamps:{ metal, currency } }`.
+- **Verified live values (USD per metric tonne):** `lme_copper` ≈ **14,233**, `lme_lead` ≈ **1,897**, `lme_zinc` ≈ **3,872** (spot keys `copper`/`lead`/`zinc` also present and distinct — LME 3M is the `lme_*` key). **Unit `mt` = our canonical MT — no conversion needed.** As-of timestamp: `timestamps.metal` (ISO 8601 UTC).
+- **Free tier includes LME data** — confirmed, not paid-gated.
+- **History: NOT usable for industrial metals.** `/timeseries` returns **precious metals only, in `toz`** (gold/silver/platinum/palladium). There is **no LME Copper/Lead/Zinc history** via timeseries, so the quote (LME 3M) and any timeseries (precious/spot) are **incompatible and must not be merged**. Copper's chart therefore stays sample until a compatible real LME history source exists.
+
+### Benchmark matrix (verified)
+| Commodity | benchmarkId | Provider symbol | Spot/LME | Currency | Unit | History | Classification | Public display |
+|---|---|---|---|---|---|---|---|---|
+| Copper | `copper-lme-3m` | `lme_copper` | **LME 3M** | USD | mt | none (industrial) | exact | **LME Copper 3M reference benchmark** |
+| Lead | `lead-lme-3m` | `lme_lead` | LME 3M | USD | mt | none | exact | **LME Lead 3M reference benchmark** |
+| Zinc | `zinc-lme-3m` | `lme_zinc` | LME 3M | USD | mt | none | exact | **LME Zinc 3M reference benchmark** |
+
+Never presented as OEML transaction/selling prices.
+
+### Pricing (correction to D1)
+| | Free | Copper plan |
+|---|---|---|
+| Price | $0 | **$1.79/mo** (annual billing = two months free; the ~$1.49/mo figure is only the effective annualized rate) |
+| Quota | 100 req/mo | 2,000 req/mo |
+| Updates | 60s | 60s |
+| LME + all endpoints | included | included |
+
+### Commercial / public display
+Metals.Dev terms permit publishing rates on a website for commercial purposes **while an active subscription is maintained**. We treat a **paid subscription as the production requirement** and keep **`publicDisplayApproved = false`** until it is confirmed. Copper/Lead/Zinc are therefore **verified live but displayed as before** (Copper sample, Lead-Zinc in preparation).
+
+### Go-live promotion (after a paid plan + commercial confirmation)
+1. Confirm the paid Metals.Dev plan + commercial/public-display rights.
+2. Copper: set `routing:"live"`, `publicDisplayApproved:true`, `freshnessPolicy: delayed15m`, `attribution: METALSDEV_ATTRIBUTION`; resolve the chart (no live LME history — show a no-data chart or source compatible history).
+3. Lead-Zinc: promote `LEAD_ZINC_BENCHMARKS` (Lead + Zinc, `publicDisplayApproved:true`); render the two separate benchmarks on the profile — **never one blended price**; do not split the public catalogue unless required.
+4. Widen/confirm sanity bands against live magnitudes; re-run the probe.
+5. Invariant enforced by tests: `routing:"live"` requires `publicDisplayApproved`.
+
+### Failure / partial mapping (implemented)
+Invalid symbol / missing benchmark → omitted (partial, first-class → per-benchmark fallback); HTTP 401/403 → `auth`; 429 → `rate_limit`; 402 → `quota`; 400/422 → `bad_request`; malformed/Zod-invalid → `malformed`; timeout/network → `timeout`/`network`.
+
+### Remaining Metals.Dev limitations (true, not shortcuts)
+- No industrial/LME **history** (timeseries is precious-only) → no real Copper chart yet.
+- **Commercial public display requires a paid subscription** → gated off until confirmed.
+- Free quota 100/mo is tight; the $1.79/mo Copper plan (2,000/mo) is the production choice.
+
+---
+
+## MetalpriceAPI
 
 ## Current state
 

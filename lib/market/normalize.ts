@@ -56,14 +56,16 @@ function unavailable(
 }
 
 /**
- * Normalize a live provider quote for one benchmark. `raw` may be undefined when
- * the provider omitted the symbol (→ unavailable, no fabrication).
+ * Normalize a provider quote for one benchmark. `raw` may be undefined when the
+ * provider omitted it (→ unavailable, no fabrication). `sourceType` stamps the
+ * provenance (a live provider vs. the sample provider) through one code path.
  */
-export function normalizeLiveQuote(
+export function normalizeQuote(
   raw: RawQuote | undefined,
   cfg: BenchmarkConfig,
   name: string,
-  retrievedAt: string
+  retrievedAt: string,
+  sourceType: "live" | "sample"
 ): NormalizedQuote {
   if (!raw) {
     return unavailable(cfg, name, retrievedAt)
@@ -133,8 +135,8 @@ export function normalizeLiveQuote(
       change24h: null, // day-change needs an extra call/endpoint (not on Free); honest null
       updatedAt: raw.sourceTimestamp,
       status,
-      source: "live",
-      retrievedAt,
+      source: sourceType,
+      retrievedAt: sourceType === "sample" ? null : retrievedAt,
     },
     native: { providerValue: raw.value, providerUnit },
   }

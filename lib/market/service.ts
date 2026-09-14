@@ -10,65 +10,66 @@ import type {
   Metal,
   DataProvenance,
 } from "@/lib/market/types"
-import { mockMarketProvider } from "@/lib/market/providers/mock"
-import { metalpriceApiProvider } from "@/lib/market/providers/metalpriceapi"
-import type { RawQuote } from "@/lib/market/providers/types"
-import { normalizeLiveQuote } from "@/lib/market/normalize"
+import {
+  getProvider,
+  isProviderImplemented,
+} from "@/lib/market/providers/router"
+import { providerHealth } from "@/lib/market/providers/health"
+import type {
+  FetchLatestResult,
+  ProviderBenchmarkRequest,
+} from "@/lib/market/providers/types"
+import { normalizeQuote } from "@/lib/market/normalize"
 import {
   getBenchmark,
-  liveSymbols,
+  type BenchmarkConfig,
+  type ProviderId,
   SAMPLE_ATTRIBUTION,
   METALPRICEAPI_ATTRIBUTION,
   UNAVAILABLE_ATTRIBUTION,
 } from "@/lib/market/benchmarks"
-import { evaluateFreshness, MOCK_FRESHNESS_POLICY } from "@/lib/market/freshness"
+import {
+  getSampleExtendedChanges,
+  getSampleHistory,
+} from "@/lib/market/providers/mock"
 import { okMeta, degradedMeta, type ReadMeta } from "@/lib/market/meta"
+import { getObservationRepository } from "@/lib/market/repository"
 import { getContentSource } from "@/lib/content/source"
 import { computeStatistics } from "@/lib/market/history"
 import { serverConfig } from "@/lib/config/env"
 import { logger } from "@/lib/observability/logger"
 
 /*
-  Market read service — registry-driven, MIXED-SOURCE orchestration.
+  Market read service — registry + router driven, MIXED-SOURCE orchestration.
 
-  Each catalogue commodity is routed by the BenchmarkRegistry:
-    - "live"   : fetched from a real provider (Gold/XAU on the current plan),
-                 normalised, sanity-guarded, stamped source:"live".
-    - "sample" : served from the labelled in-repo fixtures, stamped
-                 source:"sample" (never presented as live).
-    - "none"   : no benchmark, stamped source:"unavailable" ("in preparation").
+  Per commodity the BenchmarkRegistry decides routing (live | sample | none); the
+  ProviderRouter resolves the provider; each provider is asked for its benchmarks
+  by {benchmarkId, providerSymbol} and returns RAW quotes keyed by benchmarkId.
+  Partial responses are FIRST-CLASS: a benchmark the provider omits (or a whole
+  provider failure) is resolved per that benchmark's own fallback policy, never
+  failing the batch. One page can show live Gold beside labelled sample Copper
+  and unavailable others, each with honest provenance.
 
-  One page can therefore show a real Gold benchmark beside indicative sample
-  Copper, with each value carrying honest provenance (see `DataProvenance`).
+  Modes:
+    - default ("registry"): per-benchmark routing. A live provider that is not
+      configured (missing key) → its benchmarks fall back (last-known-good or
+      unavailable) and log; never mock-as-live in production.
+    - "mock" (MARKET_PROVIDER=mock): explicit full sample/demo build — every
+      commodity with fixture data is served from the sample provider, labelled.
 
-  Activation is by config, and reversible without code:
-    MARKET_PROVIDER=metalpriceapi + METALPRICE_API_KEY set → live routing active.
-    Otherwise → live-routed commodities fall back to their sample data (dev) or,
-    in production with a live provider configured but no key, FAIL CLEARLY
-    (rendered unavailable + logged) rather than silently showing mock as live.
+  Fallback order per benchmark: fresh → cached → last-known-good (stale/degraded)
+  → sample only where the policy allows in dev → unavailable.
 
-  Failure handling (live only; sample is local and cannot fail): a success-only
-  in-memory TTL cache plus a last-known-good store. On a live failure we serve
-  the last good raw payload (its own timestamps make it read as EOD/stale) with
-  `degraded` meta; if there is none, live commodities render unavailable. A
-  transient failure is never cached and only a safe signal reaches callers.
-
-  LIMITATION: the cache/last-known-good are per server instance and do not
-  survive a cold start (no database, by design). The provider adapter's Next
-  fetch revalidate softens this; durable last-known-good is a future step.
+  LIMITATION: the L1 cache and last-known-good are per server instance and do not
+  survive a cold start (no database, by design; the repository seam in the next
+  phase makes durable storage pluggable). The adapter's Next fetch revalidate
+  softens this.
 */
 
 const LIVE_CACHE_TTL_MS = 3 * 60 * 60 * 1000 // 3h; daily/EOD data + provider fetch-cache
 
-function isLiveConfigured(): boolean {
-  return serverConfig.marketProvider === "metalpriceapi"
-}
-function hasLiveKey(): boolean {
-  return !!serverConfig.metalPriceApiKey
-}
-/** Live routing is actually active only when configured AND credentialed. */
-export function isLiveActive(): boolean {
-  return isLiveConfigured() && hasLiveKey()
+function isDemoMode(): boolean {
+  return serverConfig.marketMode === "mock"
 }
 
 export type MetalDetailData = {
@@ -76,157 +77,225 @@ export type MetalDetailData = {
   historySet: Partial<Record<ChartRange, HistoryPoint[]>>
 }
 
-// --- helpers ---------------------------------------------------------------
+// --- L1 in-memory fetch cache; L2 last-known-good via the repository seam -----
+const providerCache = new Map<ProviderId, { data: FetchLatestResult; at: number }>()
+const repository = getObservationRepository()
 
-function unavailableQuote(
-  symbol: string | undefined,
-  name: string,
-  unit: string,
-  source: DataProvenance = "unavailable"
-): MarketQuote {
+function unavailableQuote(cfg: BenchmarkConfig | undefined, name: string): MarketQuote {
   return {
-    symbol: symbol ?? "",
+    symbol: cfg?.providerSymbol ?? "",
     name,
     price: null,
-    currency: "USD",
-    unit,
+    currency: cfg?.currency ?? "USD",
+    unit: cfg?.canonicalUnit ?? "MT",
     change24h: null,
     updatedAt: null,
     status: "unavailable",
-    source,
+    source: "unavailable",
     retrievedAt: null,
   }
 }
 
-/** Apply the sample freshness policy and stamp sample provenance. */
-function toSampleQuote(mock: MarketQuote): MarketQuote {
-  const status =
-    mock.price == null || mock.updatedAt == null
-      ? "unavailable"
-      : evaluateFreshness(mock.updatedAt, MOCK_FRESHNESS_POLICY)
-  return { ...mock, status, source: "sample", retrievedAt: null }
-}
-
-function assertProviderHealthy() {
-  if (serverConfig.marketSimulateFailure) {
-    throw new Error("simulated market provider failure")
-  }
-}
-
-// --- live fetch with success-only cache + last-known-good ------------------
-
-type LivePayload = { quotes: Record<string, RawQuote>; retrievedAt: string }
-
-const successCache = new Map<string, { data: unknown; at: number }>()
-const lastGoodStore = new Map<string, unknown>()
-
-/** Fetch live raw quotes; cache success only; on failure serve last-known-good
- *  (marked degraded) else empty. Returns raw quotes + whether degraded. */
-async function getLiveQuotes(): Promise<{ data: LivePayload; degraded: boolean }> {
-  const symbols = liveSymbols("metalpriceapi")
-  if (symbols.length === 0) {
-    return { data: { quotes: {}, retrievedAt: new Date().toISOString() }, degraded: false }
-  }
-
-  const key = "live:quotes"
+/** Fetch a provider's latest with an L1 TTL cache; live failures are simulated
+ *  via MARKET_SIMULATE_FAILURE. Returns the result or a typed failure. */
+async function fetchLatest(
+  provider: ReturnType<typeof getProvider>,
+  requests: ProviderBenchmarkRequest[]
+): Promise<{ ok: true; result: FetchLatestResult } | { ok: false; code: string }> {
+  if (!provider) return { ok: false, code: "provider_unavailable" }
   const now = Date.now()
-  const cached = successCache.get(key)
+  const cached = providerCache.get(provider.id)
   if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
-    return { data: cached.data as LivePayload, degraded: false }
+    logger.info("market.cache.hit", { provider: provider.id })
+    return { ok: true, result: cached.data }
   }
-
+  logger.info("market.cache.miss", { provider: provider.id })
+  providerHealth.recordAttempt(provider.id)
   try {
-    assertProviderHealthy()
-    const r = await metalpriceApiProvider.fetchQuotes(symbols)
-    const data: LivePayload = { quotes: r.quotes, retrievedAt: r.retrievedAt }
-    successCache.set(key, { data, at: now })
-    lastGoodStore.set(key, data)
-    return { data, degraded: false }
+    if (serverConfig.marketSimulateFailure && provider.sourceType === "live") {
+      throw Object.assign(new Error("simulated failure"), { code: "network" })
+    }
+    logger.info("market.fetch.started", { provider: provider.id, count: requests.length })
+    const result = await provider.getLatest(requests)
+    providerCache.set(provider.id, { data: result, at: now })
+    providerHealth.recordSuccess(provider.id, result.quota)
+    logger.info("market.fetch.success", {
+      provider: provider.id,
+      returned: Object.keys(result.quotes).length,
+    })
+    return { ok: true, result }
   } catch (err) {
     const code =
       err && typeof err === "object" && "code" in err
-        ? (err as { code: string }).code
+        ? String((err as { code: unknown }).code)
         : "unknown"
-    logger.warn("market.live.fetch_failed", { provider: "metalpriceapi", code })
-    const lastGood = lastGoodStore.get(key) as LivePayload | undefined
-    if (lastGood) {
-      return { data: lastGood, degraded: true }
+    providerHealth.recordFailure(provider.id, code)
+    logger.warn("market.fetch.failed", { provider: provider.id, code })
+    if (code === "rate_limit" || code === "quota") {
+      logger.warn("market.provider.rate_limited", { provider: provider.id, code })
     }
-    return { data: { quotes: {}, retrievedAt: new Date().toISOString() }, degraded: true }
+    return { ok: false, code }
   }
 }
 
-// --- core resolution (mixed source) ----------------------------------------
-
-type ResolvedQuotes = {
-  bySlug: Record<string, MarketQuote>
-  meta: ReadMeta
+/** Resolve a single benchmark that had no fresh value, per its fallback policy. */
+async function fallbackQuote(
+  cfg: BenchmarkConfig,
+  name: string
+): Promise<{ quote: MarketQuote; degraded: boolean }> {
+  if (cfg.fallbackPolicy === "live-then-lastgood") {
+    const good = await repository.getLastKnownGood(cfg.benchmarkId)
+    if (good && good.price != null) {
+      logger.warn("market.quote.stale", { benchmarkId: cfg.benchmarkId })
+      return { quote: { ...good, status: "stale", source: "live" }, degraded: true }
+    }
+  }
+  return { quote: unavailableQuote(cfg, name), degraded: true }
 }
 
-async function resolveQuotes(catalogue: Metal[]): Promise<ResolvedQuotes> {
-  const liveActive = isLiveActive()
+// --- core resolution -------------------------------------------------------
+
+type PlanItem = {
+  slug: string
+  name: string
+  cfg: BenchmarkConfig
+  request: ProviderBenchmarkRequest
+}
+
+async function resolveQuotes(catalogue: Metal[]): Promise<{
+  bySlug: Record<string, MarketQuote>
+  meta: ReadMeta
+}> {
+  const demo = isDemoMode()
   const isProd = process.env.NODE_ENV === "production"
   const bySlug: Record<string, MarketQuote> = {}
+  const plan = new Map<ProviderId, PlanItem[]>()
   let degraded = false
   let anyLive = false
 
-  // Misconfiguration: live provider selected but no key.
-  if (isLiveConfigured() && !hasLiveKey()) {
-    logger.error("market.live.misconfigured", {
-      reason: "missing_api_key",
-      env: isProd ? "production" : "development",
-      // dev falls back to sample; prod fails clearly (unavailable)
-      behaviour: isProd ? "unavailable" : "sample_fallback",
-    })
-  }
-
-  let live: LivePayload | null = null
-  if (liveActive) {
-    const res = await getLiveQuotes()
-    live = res.data
-    degraded = res.degraded
-  }
-
-  const mockQuotes = await mockMarketProvider.getQuotes()
-
+  // 1. Build the fetch plan (which provider serves which benchmark).
   for (const metal of catalogue) {
     const cfg = getBenchmark(metal.slug)
-    const canonicalUnit = cfg?.canonicalUnit ?? "MT"
+    if (!cfg) {
+      bySlug[metal.slug] = unavailableQuote(undefined, metal.name)
+      continue
+    }
 
-    // 1. Live-routed and active → real provider value.
-    if (cfg?.routing === "live" && liveActive && live && cfg.providerSymbol) {
-      const raw = live.quotes[cfg.providerSymbol]
-      bySlug[metal.slug] = normalizeLiveQuote(
-        raw,
+    let providerId: ProviderId | null = null
+    let providerSymbol: string | undefined
+
+    if (demo) {
+      // Full demo: everything with sample fixture data → mock, else unavailable.
+      if (metal.symbol) {
+        providerId = "mock"
+        providerSymbol = metal.symbol
+      }
+    } else if (cfg.routing === "live") {
+      // Invariant (enforced by tests): a benchmark only routes live when public
+      // display is approved. A verified-but-gated benchmark stays "sample"/"none".
+      if (cfg.provider && isProviderImplemented(cfg.provider) && cfg.providerSymbol) {
+        providerId = cfg.provider
+        providerSymbol = cfg.providerSymbol
+      } else {
+        logger.warn("market.route.live_unroutable", {
+          slug: metal.slug,
+          provider: cfg.provider,
+        })
+      }
+    } else if (cfg.routing === "sample") {
+      if (metal.symbol) {
+        providerId = "mock"
+        providerSymbol = metal.symbol
+      }
+    }
+
+    if (providerId && providerSymbol) {
+      const item: PlanItem = {
+        slug: metal.slug,
+        name: metal.name,
         cfg,
-        metal.name,
-        live.retrievedAt
-      ).quote
-      anyLive = true
+        request: { benchmarkId: cfg.benchmarkId, providerSymbol },
+      }
+      const list = plan.get(providerId) ?? []
+      list.push(item)
+      plan.set(providerId, list)
+    } else {
+      bySlug[metal.slug] = unavailableQuote(cfg, metal.name)
+    }
+  }
+
+  // 2. Execute per provider (one batched call each) and resolve per benchmark.
+  for (const [providerId, items] of plan) {
+    const provider = getProvider(providerId)
+    const isLive = provider?.sourceType === "live"
+
+    // Provider not implemented, or a live provider missing its key → fall back.
+    if (!provider || (isLive && !provider.isConfigured())) {
+      if (isLive) {
+        logger.error("market.provider.misconfigured", {
+          provider: providerId,
+          reason: provider ? "not_configured" : "not_implemented",
+          env: isProd ? "production" : "development",
+        })
+      }
+      for (const item of items) {
+        const fb = await fallbackQuote(item.cfg, item.name)
+        bySlug[item.slug] = fb.quote
+        degraded = degraded || (isLive && fb.degraded)
+      }
       continue
     }
 
-    // 2. Live-routed but configured-without-key in PRODUCTION → fail clearly.
-    if (cfg?.routing === "live" && isLiveConfigured() && !hasLiveKey() && isProd) {
-      bySlug[metal.slug] = unavailableQuote(
-        cfg.providerSymbol,
-        metal.name,
-        canonicalUnit
-      )
-      continue
-    }
+    const outcome = await fetchLatest(
+      provider,
+      items.map((i) => i.request)
+    )
 
-    // 3. Sample-eligible (explicit sample, or a live route falling back in
-    //    dev/mock mode) with fixture data → labelled sample.
-    const sampleEligible = cfg?.routing === "sample" || cfg?.routing === "live"
-    const mq = metal.symbol ? mockQuotes[metal.symbol] : undefined
-    if (sampleEligible && mq) {
-      bySlug[metal.slug] = toSampleQuote(mq)
-      continue
+    for (const item of items) {
+      if (outcome.ok) {
+        const raw = outcome.result.quotes[item.cfg.benchmarkId]
+        if (raw) {
+          const { quote } = normalizeQuote(
+            raw,
+            item.cfg,
+            item.name,
+            outcome.result.retrievedAt,
+            provider.sourceType
+          )
+          bySlug[item.slug] = quote
+          if (quote.source === "live") {
+            anyLive = true
+            if (quote.price != null) {
+              await repository.saveObservation(item.cfg.benchmarkId, quote)
+            }
+          }
+          if (quote.source === "unavailable" && isLive) {
+            // A live raw quote that failed validation/sanity in normalization.
+            logger.warn("market.quote.rejected", {
+              benchmarkId: item.cfg.benchmarkId,
+              provider: providerId,
+            })
+            degraded = true
+          }
+        } else {
+          // Partial response: this benchmark was omitted → its own fallback.
+          const fb = await fallbackQuote(item.cfg, item.name)
+          bySlug[item.slug] = fb.quote
+          if (isLive) {
+            degraded = true
+            if (fb.quote.source === "live") anyLive = true
+          }
+        }
+      } else {
+        // Whole-provider failure → fall back every benchmark it owns.
+        const fb = await fallbackQuote(item.cfg, item.name)
+        bySlug[item.slug] = fb.quote
+        if (isLive) {
+          degraded = true
+          if (fb.quote.source === "live") anyLive = true
+        }
+      }
     }
-
-    // 4. No benchmark → unavailable ("in preparation").
-    bySlug[metal.slug] = unavailableQuote(cfg?.providerSymbol, metal.name, canonicalUnit)
   }
 
   const provider = anyLive ? "metalpriceapi" : "mock"
@@ -237,7 +306,6 @@ async function resolveQuotes(catalogue: Metal[]): Promise<ResolvedQuotes> {
 
 // --- public reads ----------------------------------------------------------
 
-/** Catalogue metals joined with current (mixed-source) quotes. */
 export async function getMarketOverview(): Promise<{
   data: MetalSummary[]
   meta: ReadMeta
@@ -246,24 +314,18 @@ export async function getMarketOverview(): Promise<{
   const { bySlug, meta } = await resolveQuotes(catalogue)
   const data = catalogue.map((metal) => ({
     ...metal,
-    quote:
-      bySlug[metal.slug] ??
-      unavailableQuote(metal.symbol, metal.name, getBenchmark(metal.slug)?.canonicalUnit ?? "MT"),
+    quote: bySlug[metal.slug] ?? unavailableQuote(getBenchmark(metal.slug), metal.name),
   }))
   return { data, meta }
 }
 
-/** Overview table rows (catalogue joined with mixed-source quotes). */
 export async function getMarketTable(): Promise<{
   data: MarketRow[]
   meta: ReadMeta
 }> {
   const catalogue = await getContentSource().getMetals()
   const { bySlug, meta } = await resolveQuotes(catalogue)
-
-  // 7d/30d change is only available for sample commodities (mock fixtures); live
-  // Gold has no multi-day change on the Free tier → honest null (em dash).
-  const ext = await mockMarketProvider.getExtendedChanges()
+  const ext = getSampleExtendedChanges()
 
   const rows: MarketRow[] = catalogue.map((metal) => {
     const q = bySlug[metal.slug]
@@ -289,7 +351,6 @@ export async function getMarketTable(): Promise<{
   return { data: rows, meta }
 }
 
-/** Resolve a catalogue metal (with its current quote) by slug. */
 export async function getMetalBySlug(
   slug: string
 ): Promise<{ data: MetalSummary | null; meta: ReadMeta }> {
@@ -300,15 +361,12 @@ export async function getMetalBySlug(
   return {
     data: {
       ...metal,
-      quote:
-        bySlug[slug] ??
-        unavailableQuote(metal.symbol, metal.name, getBenchmark(slug)?.canonicalUnit ?? "MT"),
+      quote: bySlug[slug] ?? unavailableQuote(getBenchmark(slug), metal.name),
     },
     meta,
   }
 }
 
-/** Attribution/source label for a slug, resolved from its quote provenance. */
 function sourceLabel(source: DataProvenance | undefined): string {
   switch (source) {
     case "live":
@@ -320,9 +378,6 @@ function sourceLabel(source: DataProvenance | undefined): string {
   }
 }
 
-/** Full detail + history for a metal that has detail content (Copper). History
- *  is served from the sample fixtures for sample-routed benchmarks; a live
- *  history-capable benchmark (paid tier) would source real observations here. */
 export async function getMetalDetail(
   slug: string
 ): Promise<{ data: MetalDetailData | null; meta: ReadMeta }> {
@@ -332,24 +387,19 @@ export async function getMetalDetail(
     content.getMetals(),
   ])
   const metal = catalogue.find((m) => m.slug === slug)
-  if (!contentDetail || !metal) {
-    return { data: null, meta: okMeta("mock", "mock") }
-  }
+  if (!contentDetail || !metal) return { data: null, meta: okMeta("mock", "mock") }
 
   const { bySlug, meta } = await resolveQuotes(catalogue)
   const quote = bySlug[slug]
   const cfg = getBenchmark(slug)
   const price = quote?.price
-  if (price == null) {
-    return { data: null, meta } // no anchor → no coherent history
-  }
+  if (price == null) return { data: null, meta }
 
-  // History source: sample benchmarks use the labelled mock history. (Live
-  // history is paid-gated on the current plan; a live history-capable benchmark
-  // would branch here to the provider's real observations.)
+  // Sample benchmarks use labelled sample history; a live history-capable
+  // benchmark would branch to its history provider (registry historyProvider).
   const historySet =
-    cfg?.routing !== "live" && cfg?.historyCapable
-      ? await mockMarketProvider.getHistorySet(slug, contentDetail.supportedRanges, price)
+    quote?.source === "sample" && cfg?.historyCapable
+      ? getSampleHistory(slug, contentDetail.supportedRanges, price)
       : {}
 
   const series1D = historySet["1D"] ?? []
@@ -365,7 +415,7 @@ export async function getMetalDetail(
 
   const detail: MetalDetail = {
     slug: contentDetail.slug,
-    provider: sourceLabel(quote?.source), // honest source label, not a fixed placeholder
+    provider: sourceLabel(quote?.source),
     supportedRanges: contentDetail.supportedRanges,
     statistics,
     specifications: contentDetail.specifications,

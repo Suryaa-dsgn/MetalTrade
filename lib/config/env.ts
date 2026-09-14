@@ -50,25 +50,29 @@ const secret = z
   .transform((v) => (v && v.length > 0 ? v : undefined))
 
 const schema = z.object({
-  // "mock" (default) and "metalpriceapi" are implemented; the enum is where a
-  // further approved provider is added.
-  marketProvider: selector("MARKET_PROVIDER", ["mock", "metalpriceapi"], "mock"),
+  // Market mode (retired the single global live-provider gate). "registry" =
+  // normal per-benchmark routing via the BenchmarkRegistry + ProviderRouter;
+  // "mock" = an explicit full sample/demo build. A live provider is selected per
+  // benchmark by the registry, not by a global flag.
+  marketMode: selector("MARKET_PROVIDER", ["registry", "mock"], "registry"),
   enquirySink: selector("ENQUIRY_SINK", ["log", "disabled"], "log"),
   uploadProvider: selector("UPLOAD_PROVIDER", ["disabled"], "disabled"),
   contentSource: selector("CONTENT_SOURCE", ["static"], "static"),
   marketSimulateFailure: boolFromEnv.catch(false),
-  // Secret for the MetalpriceAPI live provider. Read server-side only; never
-  // exported to callers, never logged, never sent to the client.
+  // Provider secrets. Read server-side only; never exported to callers, never
+  // logged, never sent to the client.
   metalPriceApiKey: secret,
+  metalsDevApiKey: secret,
 })
 
 export type ServerConfig = z.infer<typeof schema>
 
 export const serverConfig: ServerConfig = schema.parse({
-  marketProvider: process.env.MARKET_PROVIDER,
+  marketMode: process.env.MARKET_PROVIDER,
   enquirySink: process.env.ENQUIRY_SINK,
   uploadProvider: process.env.UPLOAD_PROVIDER,
   contentSource: process.env.CONTENT_SOURCE,
   marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
   metalPriceApiKey: process.env.METALPRICE_API_KEY,
+  metalsDevApiKey: process.env.METALS_DEV_API_KEY,
 })
