@@ -56,7 +56,7 @@ export function MarketMobileList({
                   </span>
                 ) : null}
               </div>
-              <MarketStatus status={d.status} />
+              <MarketStatus status={d.status} source={d.source} />
             </div>
 
             <div className="mt-3 flex items-baseline gap-1 tabular-nums">

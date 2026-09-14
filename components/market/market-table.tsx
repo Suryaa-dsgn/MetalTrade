@@ -135,7 +135,7 @@ export function MarketTable({
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{d.unitLabel}</td>
                 <td className="px-4 py-3">
-                  <MarketStatus status={d.status} />
+                  <MarketStatus status={d.status} source={d.source} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground tabular-nums">
                   {d.updatedLabel}

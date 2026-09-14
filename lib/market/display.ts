@@ -13,6 +13,7 @@ export type DisplayRow = {
   symbol?: string
   category: string
   status: MarketRow["status"]
+  source: MarketRow["source"]
   priceLabel: string
   unitLabel: string
   currency: string
@@ -45,6 +46,7 @@ export function buildDisplayRow(row: MarketRow, unit: DisplayUnit): DisplayRow {
     symbol: row.symbol,
     category: row.category,
     status: row.status,
+    source: row.source,
     priceLabel,
     unitLabel,
     currency: row.currency,

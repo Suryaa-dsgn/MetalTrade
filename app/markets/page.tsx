@@ -13,10 +13,12 @@ import { MarketFreshness } from "@/components/market/market-freshness"
 import { MarketsExplorer } from "@/components/market/markets-explorer"
 import { BenchmarkDisclaimer } from "@/components/market/benchmark-disclaimer"
 
+// Provider-neutral metadata: never claims a specific source and never depends on
+// a market-provider read (per-source/freshness detail lives in the visible UI).
 export const metadata: Metadata = {
   title: "Markets",
   description:
-    "Indicative market benchmarks and historical movement for physical commodities. Development sample data. Not a live market feed.",
+    "Reference market benchmarks and historical context for physical commodities and minerals.",
 }
 
 export default async function MarketsPage({
@@ -48,6 +50,10 @@ export default async function MarketsPage({
   const latestUpdated =
     rows.find((r) => r.updatedAt)?.updatedAt ?? null
 
+  // Truthful source summary for this page's mixed data.
+  const hasLive = rows.some((r) => r.source === "live")
+  const hasSample = rows.some((r) => r.source === "sample")
+
   return (
     <Section spacing="compact">
       <SectionHeading
@@ -69,6 +75,8 @@ export default async function MarketsPage({
         className="mt-6"
         freshness={freshness}
         updatedLabel={formatUpdatedAtUTC(latestUpdated)}
+        hasLive={hasLive}
+        hasSample={hasSample}
       />
 
       <div className="mt-8">
@@ -101,11 +109,13 @@ export default async function MarketsPage({
       <div className="mt-10 rounded-lg border border-border bg-surface-muted p-6">
         <Label>How to read this</Label>
         <Body className="mt-2 text-muted-foreground">
-          All values on this page are indicative development sample data and are
-          not live. A reference price is a market benchmark, expressed in its
-          native unit and in USD. Movement columns show percentage change over
-          24 hours, 7 days, and 30 days. Unavailable values show an em dash, not
-          a zero.
+          {hasLive
+            ? "Each value is labelled by source. Values marked Sample are indicative development data, not live. Live benchmarks come from a market-data provider and may be delayed or end of day. "
+            : "All values on this page are indicative development sample data and are not live. "}
+          A reference price is a market benchmark, not a transaction price,
+          expressed in its native unit and in USD. Movement columns show
+          percentage change over 24 hours, 7 days, and 30 days. Unavailable
+          values show an em dash, not a zero.
         </Body>
       </div>
 
