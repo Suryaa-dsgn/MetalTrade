@@ -191,6 +191,8 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
         providerSymbol = metal.symbol
       }
     } else if (cfg.routing === "live") {
+      // Invariant (enforced by tests): a benchmark only routes live when public
+      // display is approved. A verified-but-gated benchmark stays "sample"/"none".
       if (cfg.provider && isProviderImplemented(cfg.provider) && cfg.providerSymbol) {
         providerId = cfg.provider
         providerSymbol = cfg.providerSymbol

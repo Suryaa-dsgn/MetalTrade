@@ -59,9 +59,10 @@ const schema = z.object({
   uploadProvider: selector("UPLOAD_PROVIDER", ["disabled"], "disabled"),
   contentSource: selector("CONTENT_SOURCE", ["static"], "static"),
   marketSimulateFailure: boolFromEnv.catch(false),
-  // Secret for the MetalpriceAPI live provider. Read server-side only; never
-  // exported to callers, never logged, never sent to the client.
+  // Provider secrets. Read server-side only; never exported to callers, never
+  // logged, never sent to the client.
   metalPriceApiKey: secret,
+  metalsDevApiKey: secret,
 })
 
 export type ServerConfig = z.infer<typeof schema>
@@ -73,4 +74,5 @@ export const serverConfig: ServerConfig = schema.parse({
   contentSource: process.env.CONTENT_SOURCE,
   marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
   metalPriceApiKey: process.env.METALPRICE_API_KEY,
+  metalsDevApiKey: process.env.METALS_DEV_API_KEY,
 })

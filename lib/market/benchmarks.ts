@@ -80,6 +80,10 @@ export type BenchmarkConfig = {
   /** Optional distinct history provider (only when semantics are compatible). */
   historyProvider?: ProviderId
   historySymbol?: string
+  /** For a commodity whose profile carries MULTIPLE separate reference
+   *  benchmarks (e.g. Lead-Zinc → LME Lead 3M + LME Zinc 3M): the benchmarkIds of
+   *  its components. The commodity itself is NEVER given one blended price. */
+  components?: string[]
   /** Unit the provider value is denominated in (set when verified). */
   providerUnit?: MassUnit
   /** Unit we display/store canonically. */
@@ -126,6 +130,12 @@ export const METALPRICEAPI_ATTRIBUTION: Attribution = {
   url: "https://metalpriceapi.com",
   disclaimer: "Reference benchmark, delayed / end of day. Not a transaction price.",
 }
+export const METALSDEV_ATTRIBUTION: Attribution = {
+  label: "LME reference benchmark via Metals.Dev",
+  url: "https://metals.dev",
+  disclaimer:
+    "LME 3-month reference benchmark, may be delayed. Not a transaction or selling price.",
+}
 export const SAMPLE_ATTRIBUTION: Attribution = {
   label: "Indicative sample data",
   disclaimer: "Development sample, not a live market feed.",
@@ -157,7 +167,8 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     freshnessPolicy: FRESHNESS_PRESETS.endOfDay,
     historyCapable: false, // paid-gated on Free
     unitVerified: true, // verified live: USDXAU ≈ 4348/oz
-    sanityBand: [500, 20000],
+    // Broad DEFENSIVE band (not a market forecast): reject only impossible values.
+    sanityBand: [500, 50000],
     attribution: METALPRICEAPI_ATTRIBUTION,
   },
 
@@ -165,19 +176,26 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     slug: "copper",
     benchmarkId: "copper-lme-3m",
     displayName: "LME Copper 3M",
-    routing: "sample", // → "live" once Metals.Dev is integrated + verified
+    // Its identity is LME Copper 3M; VERIFIED live via Metals.Dev (lme_copper,
+    // USD/mt, ≈ 14233). Currently DISPLAYED as labelled sample (unchanged UI)
+    // because public display is not yet approved. PROMOTE to live by: set
+    // routing:"live", publicDisplayApproved:true, freshnessPolicy: delayed15m —
+    // after a paid Metals.Dev plan + commercial rights are confirmed, and after
+    // resolving the chart (no live LME history is available — see readiness doc).
+    routing: "sample",
     classification: "exact",
     fallbackPolicy: "sample-allowed-dev",
     publicDisplayApproved: false,
-    provider: "metalsdev", // planned
-    canonicalUnit: "MT", // metric tonne; matches the sample fixture's display label
+    provider: "metalsdev",
+    providerSymbol: "lme_copper", // verified live symbol
+    providerUnit: "MT", // metric tonne — verified (unit "mt")
+    canonicalUnit: "MT",
     currency: "USD",
-    freshnessPolicy: MOCK_FRESHNESS_POLICY,
-    historyCapable: true, // sample history exists (data/mock)
-    unitVerified: false,
-    sanityBand: [7000, 13000],
-    unavailableReason: "provider-not-integrated",
-    attribution: SAMPLE_ATTRIBUTION,
+    freshnessPolicy: MOCK_FRESHNESS_POLICY, // sample display; delayed15m when live
+    historyCapable: true, // sample history (chart) while displayed as sample
+    unitVerified: true, // verified live: lme_copper ≈ 14233 USD/t
+    sanityBand: [4000, 25000], // broad defensive band (correction 9), USD/t
+    attribution: SAMPLE_ATTRIBUTION, // METALSDEV_ATTRIBUTION when promoted to live
   },
   lithium: {
     slug: "lithium",
@@ -220,13 +238,16 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     slug: "lead-zinc",
     benchmarkId: "lead-zinc-combined",
     displayName: "Lead-Zinc",
+    // The commodity itself has NO single price. Its profile carries two separate
+    // reference benchmarks (see LEAD_ZINC_BENCHMARKS / `components`). The overview
+    // table keeps one non-blended row; the two live values are verified but stay
+    // display-gated (publicDisplayApproved) like Copper.
     routing: "none",
-    // Lead (metalsdev) and Zinc (metalsdev) are SEPARATE exact benchmarks; the
-    // combined catalogue slug must never become one blended number.
     classification: "unavailable",
     fallbackPolicy: "unavailable",
     publicDisplayApproved: false,
-    canonicalUnit: "t",
+    components: ["lead-lme-3m", "zinc-lme-3m"],
+    canonicalUnit: "MT",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
     historyCapable: false,
@@ -352,6 +373,54 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     unitVerified: false,
     unavailableReason: "provider-not-integrated",
     attribution: SAMPLE_ATTRIBUTION,
+  },
+}
+
+/*
+  Component benchmarks for the Lead-Zinc commodity profile — two SEPARATE LME 3M
+  reference benchmarks, never blended into one number. Keyed by benchmarkId (not
+  a catalogue slug). Verified live via Metals.Dev (lme_lead ≈ 1897, lme_zinc ≈
+  3872 USD/t); display stays gated until commercial rights are confirmed. The
+  detail UI that renders both is wired when public display is approved.
+*/
+export const LEAD_ZINC_BENCHMARKS: Record<string, BenchmarkConfig> = {
+  "lead-lme-3m": {
+    slug: "lead-zinc",
+    benchmarkId: "lead-lme-3m",
+    displayName: "LME Lead 3M",
+    routing: "none", // verified live, not yet displayed (promote when approved)
+    classification: "exact",
+    fallbackPolicy: "live-then-lastgood",
+    publicDisplayApproved: false,
+    provider: "metalsdev",
+    providerSymbol: "lme_lead",
+    providerUnit: "MT",
+    canonicalUnit: "MT",
+    currency: "USD",
+    freshnessPolicy: FRESHNESS_PRESETS.delayed15m,
+    historyCapable: false,
+    unitVerified: true,
+    sanityBand: [500, 6000],
+    attribution: METALSDEV_ATTRIBUTION,
+  },
+  "zinc-lme-3m": {
+    slug: "lead-zinc",
+    benchmarkId: "zinc-lme-3m",
+    displayName: "LME Zinc 3M",
+    routing: "none", // verified live, not yet displayed (promote when approved)
+    classification: "exact",
+    fallbackPolicy: "live-then-lastgood",
+    publicDisplayApproved: false,
+    provider: "metalsdev",
+    providerSymbol: "lme_zinc",
+    providerUnit: "MT",
+    canonicalUnit: "MT",
+    currency: "USD",
+    freshnessPolicy: FRESHNESS_PRESETS.delayed15m,
+    historyCapable: false,
+    unitVerified: true,
+    sanityBand: [1000, 8000],
+    attribution: METALSDEV_ATTRIBUTION,
   },
 }
 

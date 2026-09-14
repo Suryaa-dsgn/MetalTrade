@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   BENCHMARKS,
+  LEAD_ZINC_BENCHMARKS,
   PROVIDER_CAPABILITIES,
   liveSymbols,
   liveSlugs,
@@ -44,6 +45,40 @@ describe("benchmark registry", () => {
       expect(b.sanityBand, `${b.slug} sanityBand`).toBeDefined()
       expect(b.publicDisplayApproved, `${b.slug} public-display`).toBe(true)
     }
+  })
+
+  it("only routes a benchmark live when public display is approved (commercial gate)", () => {
+    for (const b of [...Object.values(BENCHMARKS), ...Object.values(LEAD_ZINC_BENCHMARKS)]) {
+      if (b.routing === "live") {
+        expect(b.publicDisplayApproved, `${b.benchmarkId} live requires display approval`).toBe(true)
+      }
+    }
+  })
+
+  it("carries the VERIFIED (but display-gated) Metals.Dev LME mapping for Copper", () => {
+    const cu = getBenchmark("copper")!
+    expect(cu.provider).toBe("metalsdev")
+    expect(cu.providerSymbol).toBe("lme_copper")
+    expect(cu.providerUnit).toBe("MT")
+    expect(cu.unitVerified).toBe(true)
+    expect(cu.publicDisplayApproved).toBe(false) // gated → still displayed as sample
+    expect(cu.routing).toBe("sample")
+    // broad defensive band admits the real live value (≈14233), correction 9
+    expect(cu.sanityBand![1]).toBeGreaterThanOrEqual(14233)
+  })
+
+  it("defines Lead and Zinc as two SEPARATE verified LME benchmarks (never blended)", () => {
+    const lead = LEAD_ZINC_BENCHMARKS["lead-lme-3m"]
+    const zinc = LEAD_ZINC_BENCHMARKS["zinc-lme-3m"]
+    expect(lead.providerSymbol).toBe("lme_lead")
+    expect(zinc.providerSymbol).toBe("lme_zinc")
+    expect(lead.providerUnit).toBe("MT")
+    expect(zinc.providerUnit).toBe("MT")
+    expect(lead.unitVerified && zinc.unitVerified).toBe(true)
+    // the combined commodity references both and is never given one price
+    const lz = getBenchmark("lead-zinc")!
+    expect(lz.components).toEqual(["lead-lme-3m", "zinc-lme-3m"])
+    expect(lz.routing).toBe("none")
   })
 
   it("never routes a rejected-proxy live (semantic guard)", () => {

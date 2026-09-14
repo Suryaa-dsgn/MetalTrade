@@ -44,6 +44,52 @@ client for the chosen plan **before** `publicDisplayApproved` is set.
 
 ---
 
+## Metals.Dev (verified — Phase D2)
+
+- **Provider:** `lib/market/providers/metalsdev.ts`. **Plan:** Free (probed 2026-09-14).
+- **Base:** `https://api.metals.dev/v1`. **Auth:** `api_key` query param (server-side only; the URL is never logged).
+- **Endpoint:** `GET /latest?currency=USD&unit=mt` → `{ status:"success", currency:"USD", unit:"mt", metals:{…}, currencies:{…}, timestamps:{ metal, currency } }`.
+- **Verified live values (USD per metric tonne):** `lme_copper` ≈ **14,233**, `lme_lead` ≈ **1,897**, `lme_zinc` ≈ **3,872** (spot keys `copper`/`lead`/`zinc` also present and distinct — LME 3M is the `lme_*` key). **Unit `mt` = our canonical MT — no conversion needed.** As-of timestamp: `timestamps.metal` (ISO 8601 UTC).
+- **Free tier includes LME data** — confirmed, not paid-gated.
+- **History: NOT usable for industrial metals.** `/timeseries` returns **precious metals only, in `toz`** (gold/silver/platinum/palladium). There is **no LME Copper/Lead/Zinc history** via timeseries, so the quote (LME 3M) and any timeseries (precious/spot) are **incompatible and must not be merged**. Copper's chart therefore stays sample until a compatible real LME history source exists.
+
+### Benchmark matrix (verified)
+| Commodity | benchmarkId | Provider symbol | Spot/LME | Currency | Unit | History | Classification | Public display |
+|---|---|---|---|---|---|---|---|---|
+| Copper | `copper-lme-3m` | `lme_copper` | **LME 3M** | USD | mt | none (industrial) | exact | **LME Copper 3M reference benchmark** |
+| Lead | `lead-lme-3m` | `lme_lead` | LME 3M | USD | mt | none | exact | **LME Lead 3M reference benchmark** |
+| Zinc | `zinc-lme-3m` | `lme_zinc` | LME 3M | USD | mt | none | exact | **LME Zinc 3M reference benchmark** |
+
+Never presented as OEML transaction/selling prices.
+
+### Pricing (correction to D1)
+| | Free | Copper plan |
+|---|---|---|
+| Price | $0 | **$1.79/mo** (annual billing = two months free; the ~$1.49/mo figure is only the effective annualized rate) |
+| Quota | 100 req/mo | 2,000 req/mo |
+| Updates | 60s | 60s |
+| LME + all endpoints | included | included |
+
+### Commercial / public display
+Metals.Dev terms permit publishing rates on a website for commercial purposes **while an active subscription is maintained**. We treat a **paid subscription as the production requirement** and keep **`publicDisplayApproved = false`** until it is confirmed. Copper/Lead/Zinc are therefore **verified live but displayed as before** (Copper sample, Lead-Zinc in preparation).
+
+### Go-live promotion (after a paid plan + commercial confirmation)
+1. Confirm the paid Metals.Dev plan + commercial/public-display rights.
+2. Copper: set `routing:"live"`, `publicDisplayApproved:true`, `freshnessPolicy: delayed15m`, `attribution: METALSDEV_ATTRIBUTION`; resolve the chart (no live LME history — show a no-data chart or source compatible history).
+3. Lead-Zinc: promote `LEAD_ZINC_BENCHMARKS` (Lead + Zinc, `publicDisplayApproved:true`); render the two separate benchmarks on the profile — **never one blended price**; do not split the public catalogue unless required.
+4. Widen/confirm sanity bands against live magnitudes; re-run the probe.
+5. Invariant enforced by tests: `routing:"live"` requires `publicDisplayApproved`.
+
+### Failure / partial mapping (implemented)
+Invalid symbol / missing benchmark → omitted (partial, first-class → per-benchmark fallback); HTTP 401/403 → `auth`; 429 → `rate_limit`; 402 → `quota`; 400/422 → `bad_request`; malformed/Zod-invalid → `malformed`; timeout/network → `timeout`/`network`.
+
+### Remaining Metals.Dev limitations (true, not shortcuts)
+- No industrial/LME **history** (timeseries is precious-only) → no real Copper chart yet.
+- **Commercial public display requires a paid subscription** → gated off until confirmed.
+- Free quota 100/mo is tight; the $1.79/mo Copper plan (2,000/mo) is the production choice.
+
+---
+
 ## MetalpriceAPI
 
 ## Current state
