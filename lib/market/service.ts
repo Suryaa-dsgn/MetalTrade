@@ -32,6 +32,7 @@ import {
   getSampleHistory,
 } from "@/lib/market/providers/mock"
 import { okMeta, degradedMeta, type ReadMeta } from "@/lib/market/meta"
+import { getObservationRepository } from "@/lib/market/repository"
 import { getContentSource } from "@/lib/content/source"
 import { computeStatistics } from "@/lib/market/history"
 import { serverConfig } from "@/lib/config/env"
@@ -75,9 +76,9 @@ export type MetalDetailData = {
   historySet: Partial<Record<ChartRange, HistoryPoint[]>>
 }
 
-// --- L1 cache + last-known-good (per instance; repository seam replaces later) ---
+// --- L1 in-memory fetch cache; L2 last-known-good via the repository seam -----
 const providerCache = new Map<ProviderId, { data: FetchLatestResult; at: number }>()
-const lastGoodStore = new Map<string, MarketQuote>() // by benchmarkId (live only)
+const repository = getObservationRepository()
 
 function unavailableQuote(cfg: BenchmarkConfig | undefined, name: string): MarketQuote {
   return {
@@ -131,12 +132,12 @@ async function fetchLatest(
 }
 
 /** Resolve a single benchmark that had no fresh value, per its fallback policy. */
-function fallbackQuote(cfg: BenchmarkConfig, name: string): {
-  quote: MarketQuote
-  degraded: boolean
-} {
+async function fallbackQuote(
+  cfg: BenchmarkConfig,
+  name: string
+): Promise<{ quote: MarketQuote; degraded: boolean }> {
   if (cfg.fallbackPolicy === "live-then-lastgood") {
-    const good = lastGoodStore.get(cfg.benchmarkId)
+    const good = await repository.getLastKnownGood(cfg.benchmarkId)
     if (good && good.price != null) {
       return { quote: { ...good, status: "stale", source: "live" }, degraded: true }
     }
@@ -228,7 +229,7 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
         })
       }
       for (const item of items) {
-        const fb = fallbackQuote(item.cfg, item.name)
+        const fb = await fallbackQuote(item.cfg, item.name)
         bySlug[item.slug] = fb.quote
         degraded = degraded || (isLive && fb.degraded)
       }
@@ -254,12 +255,14 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
           bySlug[item.slug] = quote
           if (quote.source === "live") {
             anyLive = true
-            if (quote.price != null) lastGoodStore.set(item.cfg.benchmarkId, quote)
+            if (quote.price != null) {
+              await repository.saveObservation(item.cfg.benchmarkId, quote)
+            }
           }
           if (quote.source === "unavailable" && isLive) degraded = true
         } else {
           // Partial response: this benchmark was omitted → its own fallback.
-          const fb = fallbackQuote(item.cfg, item.name)
+          const fb = await fallbackQuote(item.cfg, item.name)
           bySlug[item.slug] = fb.quote
           if (isLive) {
             degraded = true
@@ -268,7 +271,7 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
         }
       } else {
         // Whole-provider failure → fall back every benchmark it owns.
-        const fb = fallbackQuote(item.cfg, item.name)
+        const fb = await fallbackQuote(item.cfg, item.name)
         bySlug[item.slug] = fb.quote
         if (isLive) {
           degraded = true
