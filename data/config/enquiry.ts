@@ -48,17 +48,17 @@ export type EnquiryIntentCard = {
 export const enquiryIntents: EnquiryIntentCard[] = [
   {
     id: "supply",
-    title: "I have metal to sell",
+    title: "I have material to supply",
     description:
-      "Bring a supply position to qualified demand: material, forms, quantity, and origin.",
+      "Bring a supply position: material type, quantity, location, and documents.",
     href: "/enquire/supply",
     iconKey: "supply",
   },
   {
     id: "buying",
-    title: "I want to source metal",
+    title: "I want to source material",
     description:
-      "Define a requirement: metal, specification, quantity, and destination.",
+      "Define a requirement: specification, volume, frequency, target price, and destination.",
     href: "/enquire/buying-requirement",
     iconKey: "buying",
   },

@@ -18,13 +18,13 @@ export function CompanyHero() {
         <div>
           <Label>Company</Label>
           <Display className="mt-4">
-            A physical metals intermediary between supply and demand
+            A licensed mineral aggregator between supply and demand
           </Display>
           <Lead className="mt-5">
-            We connect verified metal supply with qualified demand,
-            coordinating evaluation, documentation, verification, and delivery.
-            The site does not execute trades; the trade desk manages each
-            transaction.
+            Oriental Energy and Minerals Limited sources physical commodities
+            from reviewed suppliers and coordinates inspection, freight, and
+            origin logistics to vetted corporate and institutional buyers.
+            Suppliers and buyers are not introduced to each other.
           </Lead>
           <div className="mt-8">
             <Link href="/contact" className={buttonVariants({ size: "lg" })}>

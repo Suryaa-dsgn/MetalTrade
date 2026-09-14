@@ -16,7 +16,7 @@ import { LogisticsPreview } from "@/components/trade/logistics-preview"
 
 export const metadata: Metadata = {
   description:
-    "A physical metals intermediary connecting verified supply with qualified demand, with market benchmarks, material evidence, and logistics coordination.",
+    "Oriental Energy and Minerals Limited is a licensed mineral aggregator connecting physical commodity supply with vetted corporate and institutional demand, with material inspection and coordinated origin logistics.",
 }
 
 export default async function HomePage() {
@@ -31,22 +31,22 @@ export default async function HomePage() {
       <Section>
         <SectionHeading
           eyebrow="What we trade"
-          title="Physical metals across base, precious, and battery categories"
-          lead="Indicative sample benchmarks shown below are for demonstration only, not live prices. Confirmed forms and specifications are reviewed per enquiry."
+          title="Minerals and commodities across precious, base, battery, and energy categories"
+          lead="Indicative sample benchmarks shown below are for demonstration only, not live prices. Forms and specifications are confirmed per enquiry."
         />
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {metals.map((metal) => (
             <MetalCard key={metal.slug} metal={metal} />
           ))}
         </div>
       </Section>
 
-      {/* How the network works */}
+      {/* How we operate */}
       <Section surface="muted">
         <SectionHeading
-          eyebrow="How the network works"
-          title="Source to buyer, with control at every stage"
-          lead="A trade desk sits between qualified supply and qualified demand, coordinating pricing context, documentation, verification, and movement."
+          eyebrow="How we operate"
+          title="From reviewed supply to vetted demand"
+          lead="As the aggregator, we sit between reviewed supply and vetted demand, coordinating review, inspection, documentation, and origin logistics. Suppliers and buyers are not introduced to each other."
         />
         <div className="mt-8">
           <NetworkFlow />
@@ -57,15 +57,15 @@ export default async function HomePage() {
       <Section>
         <ValueProposition
           eyebrow="For suppliers"
-          title="Bring material to qualified demand"
-          lead="Reach screened buyers with market context and a structured commercial review, without exposing your position to a public market."
+          title="Bring material to vetted demand"
+          lead="Present a supply position to a reviewed, inspected process, without exposing your material to a public market."
           points={[
-            "Access to qualified, screened buyer demand",
-            "Independent market benchmark context for your material",
-            "A structured commercial and documentation review",
-            "Execution and logistics support through to delivery",
+            "Structured review of material type, quantity, location, and documents",
+            "Inspection of your facility and goods by our engineer",
+            "Independent third-party inspection and testing when a vetted buyer is in place",
+            "Coordination of freight and customs at the origin airport or port",
           ]}
-          cta={{ label: "I have metal to sell", href: "/enquire/supply" }}
+          cta={{ label: "I have material to supply", href: "/enquire/supply" }}
           image={homeAssets.supplier}
           imageSide="end"
         />
@@ -75,16 +75,16 @@ export default async function HomePage() {
       <Section surface="muted">
         <ValueProposition
           eyebrow="For buyers"
-          title="Source verified material to specification"
-          lead="Define what you need and source it through qualified pathways, with inspection and logistics coordinated to your destination."
+          title="Source commodities to your specification"
+          lead="Send your specification, volume, frequency, target price, and destination. We confirm details, propose suitable supply, and provide a price quote."
           points={[
-            "Defined specification, grade, and documentation up front",
-            "Verified supply pathways and counterparty qualification",
-            "Independent inspection and assay coordinated where agreed",
-            "Logistics and trade support to your destination",
+            "Send specification, target volume, order frequency, target price, and destination",
+            "Requirements confirmed and suitable supply proposed",
+            "A price quote provided for the confirmed requirement",
+            "Independent inspection coordinated; you handle customs at the destination",
           ]}
           cta={{
-            label: "I want to source metal",
+            label: "I want to source material",
             href: "/enquire/buying-requirement",
           }}
           image={homeAssets.buyer}
@@ -97,7 +97,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="Trade assurance"
           title="Trust from process and evidence"
-          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery. A sequence applied to each transaction."
+          lead="Counterparty verification, material review, origin documentation, independent inspection, and coordinated origin logistics: a sequence applied to each transaction."
         />
         <div className="mt-8">
           <TrustFramework />

@@ -56,6 +56,7 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
       quantity: "",
       unit: "",
       frequency: "",
+      targetPrice: "",
       destination: "",
       deliveryWindow: "",
       incoterm: "",
@@ -80,9 +81,9 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
 
   return (
     <EnquiryShell
-      breadcrumb={[{ label: "Contact", href: "/contact" }, { label: "Source metal" }]}
-      title="I want to source metal"
-      intro="Define a buying requirement and the trade desk will match qualified supply. Only your details, the metal, and a quantity are required."
+      breadcrumb={[{ label: "Contact", href: "/contact" }, { label: "Source material" }]}
+      title="I want to source material"
+      intro="Send your requirement. We confirm details, propose suitable supply, and provide a price quote. Only your details, the commodity, and a target volume are required."
     >
       {isSuccess && referenceId ? (
         <EnquirySuccess referenceId={referenceId} />
@@ -156,16 +157,16 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
           >
             <SelectField
               name="metal"
-              label="Metal"
+              label="Commodity"
               control={control}
               error={errors.metal?.message}
               required
               options={metalOptions}
-              placeholder="Select a metal"
+              placeholder="Select a commodity"
             />
             <TextField
               name="specification"
-              label="Form / specification"
+              label="Specification"
               register={register}
               error={errors.specification?.message}
               placeholder="e.g. Grade A cathode"
@@ -175,41 +176,48 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
               control={control}
               quantityError={errors.quantity?.message}
               unitError={errors.unit?.message}
-              label="Required quantity"
+              label="Target volume"
               required
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 name="frequency"
-                label="Frequency"
+                label="Order frequency"
                 register={register}
                 error={errors.frequency?.message}
                 placeholder="e.g. one-off, monthly"
               />
               <TextField
+                name="targetPrice"
+                label="Target price"
+                register={register}
+                error={errors.targetPrice?.message}
+                placeholder="e.g. USD 8,500 / MT"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField
                 name="destination"
-                label="Destination"
+                label="Delivery destination"
                 register={register}
                 error={errors.destination?.message}
                 autoComplete="country-name"
               />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 name="deliveryWindow"
                 label="Delivery window"
                 register={register}
                 error={errors.deliveryWindow?.message}
               />
-              <SelectField
-                name="incoterm"
-                label="Preferred Incoterm"
-                control={control}
-                error={errors.incoterm?.message}
-                options={incotermOptions}
-                placeholder="Optional"
-              />
             </div>
+            <SelectField
+              name="incoterm"
+              label="Preferred Incoterm"
+              control={control}
+              error={errors.incoterm?.message}
+              options={incotermOptions}
+              placeholder="Optional"
+            />
             <TextareaField
               name="requirements"
               label="Inspection / documentation requirements"
@@ -222,7 +230,7 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
               label="Anything else"
               register={register}
               error={errors.message?.message}
-              placeholder="End-use, target price context, timing…"
+              placeholder="End-use, timing, or anything else useful…"
             />
           </FormSection>
 
@@ -235,7 +243,7 @@ export function BuyerForm({ defaultMetal }: { defaultMetal?: string }) {
 
           <div>
             <Button type="submit" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting…" : "Request a buying conversation"}
+              {isSubmitting ? "Submitting…" : "Request a quotation"}
             </Button>
           </div>
         </form>

@@ -83,7 +83,7 @@ export function LogisticsForm() {
         { label: "Logistics" },
       ]}
       title="Discuss logistics"
-      intro="Share a route and the trade desk will review feasibility. Commodity, quantity, origin, and destination are required."
+      intro="Share a route and we will review feasibility. We coordinate inspection, freight, and customs at the origin; customs at the destination is handled by the buyer, and financing is not provided. Commodity, quantity, origin, and destination are required."
     >
       {isSuccess && referenceId ? (
         <EnquirySuccess referenceId={referenceId} />

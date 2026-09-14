@@ -56,7 +56,8 @@ export const lifecycleStages: LifecycleStage[] = [
   {
     key: "customs",
     label: "Customs",
-    description: "Export and import formalities are handled per jurisdiction.",
+    description:
+      "Export customs is handled at the origin; import customs at the destination is handled by the buyer.",
   },
   {
     key: "delivery",
@@ -69,9 +70,17 @@ export const lifecycleStages: LifecycleStage[] = [
 export const lifecycleNote =
   "This is a typical trade flow. The exact stages, sequence, and responsibilities vary by material, origin, destination, and agreed commercial terms. Not every trade passes through all eight."
 
-// Capability CATEGORIES the trade desk coordinates where agreed — supporting
-// information, not guaranteed services.
+// What the company actually coordinates (Phase 9B). Client-confirmed: inspection,
+// freight, and customs at the origin. Warehousing, insurance, tracking, and
+// financing are NOT confirmed services and are covered in "outside scope".
 export const capabilities: Capability[] = [
+  {
+    key: "inspection",
+    title: "Inspection & testing",
+    description:
+      "Engineer inspection of the facility and goods, then independent third-party inspection and testing when a vetted buyer is in place.",
+    note: "Coordinated per trade",
+  },
   {
     key: "freight",
     title: "Freight coordination",
@@ -81,42 +90,15 @@ export const capabilities: Capability[] = [
   },
   {
     key: "customs",
-    title: "Customs & documentation",
+    title: "Customs at origin",
     description:
-      "Preparation and checking of trade documents; customs handled per jurisdiction.",
-    note: "Confirmed per engagement",
-  },
-  {
-    key: "inspection",
-    title: "Inspection & assay",
-    description:
-      "Independent inspection or assay arranged where agreed in the transaction.",
-    note: "Confirmed per engagement",
-  },
-  {
-    key: "warehousing",
-    title: "Warehousing",
-    description: "Storage and handling arranged where required by the trade.",
-    note: "Confirmed per engagement",
-  },
-  {
-    key: "insurance",
-    title: "Insurance",
-    description:
-      "Cargo insurance arranged with third parties where agreed; cover and terms are transaction-specific.",
-    note: "Confirmed per engagement",
-  },
-  {
-    key: "tracking",
-    title: "Tracking",
-    description:
-      "Shipment status shared where a tracked route and data are available.",
+      "Export formalities are handled at the origin airport or port. Customs at the destination is handled by the buyer.",
     note: "Confirmed per engagement",
   },
 ]
 
 export const capabilityNote =
-  "Logistics scope is agreed per transaction. Available services, routes, third parties, and responsibilities depend on the specific trade. Nothing here is a guaranteed service."
+  "The company coordinates inspection, freight, and customs at the origin. The buyer handles customs at the destination. Financing is not provided. Scope, routes, and third parties depend on the specific trade."
 
 export const transportModes: TransportMode[] = [
   { key: "road", label: "Road" },
@@ -159,25 +141,49 @@ export const incotermNote =
   "These definitions are general references only and are not contractual advice. Responsibilities, risk, cost, insurance, destination, and delivery obligations are agreed per transaction."
 
 export const scopeInside: string[] = [
-  "Coordinating agreed logistics and documentation",
-  "Arranging inspection and assay where agreed",
+  "Coordinating engineer inspection and independent third-party testing",
+  "Coordinating freight for the route",
+  "Handling customs at the origin airport or port",
   "Preparing and checking trade documents",
-  "Coordinating freight and customs per route",
 ]
 
 export const scopeOutside: string[] = [
-  "Acting as carrier, freight forwarder, or insurer of record unless agreed",
+  "Providing financing",
+  "Customs at the destination, which is handled by the buyer",
+  "Warehousing, cargo insurance, or shipment tracking, unless separately agreed",
   "Guaranteeing specific lanes, ports, or transit times",
-  "Providing customs or legal advice",
-  "Assuming responsibilities outside the agreed Incoterm",
+  "Acting as carrier or freight forwarder of record, unless agreed",
 ]
 
 export const faqs: Faq[] = [
   {
-    id: "import-export",
-    question: "Do you handle both import and export?",
+    id: "customs",
+    question: "Who handles customs?",
     answer:
-      "Export and import formalities are coordinated per jurisdiction and the agreed Incoterm. Specifics are confirmed per transaction.",
+      "We handle export customs at the origin airport or port. Import customs at the destination is handled by the buyer.",
+  },
+  {
+    id: "financing",
+    question: "Do you provide financing?",
+    answer: "No. Financing is not provided.",
+  },
+  {
+    id: "inspection",
+    question: "Do you arrange inspection?",
+    answer:
+      "Our engineer inspects the facility and goods, and independent third-party inspection and testing is arranged when a vetted buyer is in place.",
+  },
+  {
+    id: "insurance",
+    question: "Is cargo insured?",
+    answer:
+      "Cargo insurance is not a standard service. Any cover is arranged only where separately agreed for the trade.",
+  },
+  {
+    id: "tracking",
+    question: "Can I track my shipment?",
+    answer:
+      "Shipment tracking is not a standard service. Status updates are shared only where a tracked route and data are available.",
   },
   {
     id: "incoterms",
@@ -186,33 +192,9 @@ export const faqs: Faq[] = [
       "Common Incoterms such as FOB, CIF, CFR, and EXW are used; the applicable terms are agreed for each trade.",
   },
   {
-    id: "inspection",
-    question: "Do you arrange inspection?",
-    answer:
-      "Independent inspection or assay is coordinated where agreed in the transaction.",
-  },
-  {
-    id: "insurance",
-    question: "Is cargo insured?",
-    answer:
-      "Cargo insurance is arranged with third parties where agreed. Cover and terms are transaction-specific.",
-  },
-  {
-    id: "tracking",
-    question: "Can I track my shipment?",
-    answer:
-      "Shipment status is shared where a tracked route and data are available for the movement.",
-  },
-  {
-    id: "route",
-    question: "What determines the route and transport modes?",
-    answer:
-      "Route and transport modes are considered according to material, origin, destination, and agreed terms.",
-  },
-  {
     id: "responsibility",
     question: "Who is responsible at each stage?",
     answer:
-      "Responsibilities follow the agreed Incoterm and contract; the trade desk coordinates within that scope.",
+      "Responsibilities follow the agreed Incoterm and contract; the company coordinates inspection, freight, and origin customs within that scope.",
   },
 ]

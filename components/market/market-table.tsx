@@ -23,7 +23,7 @@ type Column = {
 }
 
 const columns: Column[] = [
-  { key: "name", label: "Metal", sortable: true, numeric: false },
+  { key: "name", label: "Commodity", sortable: true, numeric: false },
   { key: "price", label: "Reference price", sortable: true, numeric: true },
   { key: "change24h", label: "24h", sortable: true, numeric: true },
   { key: "change7d", label: "7D", sortable: true, numeric: true },
@@ -114,7 +114,9 @@ export function MarketTable({
                   >
                     {d.name}
                   </Link>
-                  <span className="ml-2 text-muted-foreground">{d.symbol}</span>
+                  {d.symbol ? (
+                    <span className="ml-2 text-muted-foreground">{d.symbol}</span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
                   {d.priceLabel}

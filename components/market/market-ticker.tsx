@@ -45,7 +45,7 @@ export function MarketTicker({ metals }: { metals: MetalSummary[] }) {
           {metals.map((metal) => {
             const q = metal.quote
             return (
-              <li key={metal.symbol} className="shrink-0">
+              <li key={metal.slug} className="shrink-0">
                 <Link
                   href={`/markets/${metal.slug}`}
                   aria-label={accessibleLabel(metal)}

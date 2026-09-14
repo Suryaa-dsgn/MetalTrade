@@ -9,7 +9,7 @@ import {
   RoadFreightIcon,
   SeaFreightIcon,
   ContainerIcon,
-  WarehouseIcon,
+  CustomsIcon,
 } from "@/components/ui/domain-icon"
 import { homeAssets } from "@/lib/assets/home"
 
@@ -31,7 +31,7 @@ const modes: { label: string; Icon: ComponentType<{ className?: string }> }[] = 
   { label: "Road & rail", Icon: RoadFreightIcon },
   { label: "Sea freight", Icon: SeaFreightIcon },
   { label: "Containerised", Icon: ContainerIcon },
-  { label: "Warehousing", Icon: WarehouseIcon },
+  { label: "Origin customs", Icon: CustomsIcon },
 ]
 
 export function LogisticsPreview() {

@@ -56,9 +56,9 @@ export type MetalDetailData = {
 
 // --- helpers ---------------------------------------------------------------
 
-function unavailableQuote(symbol: string, name: string): MarketQuote {
+function unavailableQuote(symbol: string | undefined, name: string): MarketQuote {
   return {
-    symbol,
+    symbol: symbol ?? "",
     name,
     price: null,
     currency: "USD",
@@ -159,7 +159,9 @@ export async function getMarketOverview(): Promise<{
 
   const data = catalogue.map((metal) => ({
     ...metal,
-    quote: quotesBySymbol[metal.symbol] ?? unavailableQuote(metal.symbol, metal.name),
+    quote:
+      (metal.symbol ? quotesBySymbol[metal.symbol] : undefined) ??
+      unavailableQuote(metal.symbol, metal.name),
   }))
   return { data, meta }
 }
@@ -196,8 +198,9 @@ export async function getMarketTable(): Promise<{
         provider.getPressureRows(),
       ])
       const rows: MarketRow[] = catalogue.map((m) => {
-        const q = quotes[m.symbol] ? withFreshness(quotes[m.symbol]) : undefined
-        const e = ext[m.symbol]
+        const raw = m.symbol ? quotes[m.symbol] : undefined
+        const q = raw ? withFreshness(raw) : undefined
+        const e = m.symbol ? ext[m.symbol] : undefined
         return {
           slug: m.slug,
           name: m.name,
@@ -231,7 +234,7 @@ export async function getMetalBySlug(
     `quote:${slug}`,
     async () => {
       const quotes = await provider.getQuotes()
-      const q = quotes[metal.symbol]
+      const q = metal.symbol ? quotes[metal.symbol] : undefined
       return { ...metal, quote: q ? withFreshness(q) : unavailableQuote(metal.symbol, metal.name) }
     },
     (lastGood) => ({
@@ -261,7 +264,7 @@ export async function getMetalDetail(
     `detail:${slug}`,
     async () => {
       const quotes = await provider.getQuotes()
-      const quote = quotes[metal.symbol]
+      const quote = metal.symbol ? quotes[metal.symbol] : undefined
       const price = quote?.price
       if (price == null) return null // no anchor → no coherent history
 

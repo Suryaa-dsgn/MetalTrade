@@ -62,7 +62,7 @@ export function MarketControls({
               id="market-search"
               type="search"
               inputMode="search"
-              placeholder="Search metals"
+              placeholder="Search commodities"
               value={q}
               onChange={(e) => onQChange(e.target.value)}
               className="h-9 w-full rounded-md border border-input bg-surface pl-9 pr-3 text-body-s text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"

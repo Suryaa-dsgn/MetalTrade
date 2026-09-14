@@ -16,7 +16,7 @@ import { BenchmarkDisclaimer } from "@/components/market/benchmark-disclaimer"
 export const metadata: Metadata = {
   title: "Markets",
   description:
-    "Indicative market benchmarks and historical movement for physical metals. Development sample data. Not a live market feed.",
+    "Indicative market benchmarks and historical movement for physical commodities. Development sample data. Not a live market feed.",
 }
 
 export default async function MarketsPage({
@@ -53,7 +53,7 @@ export default async function MarketsPage({
       <SectionHeading
         eyebrow="Markets"
         title="Reference prices and historical movement"
-        lead="Benchmarks give market context. They are not a transaction price. Physical-metal pricing is negotiated per specification, quantity, origin, destination, and terms."
+        lead="Benchmarks give market context. They are not a transaction price. Physical commodity pricing is negotiated per specification, quantity, origin, destination, and terms."
       />
       {meta.degraded ? (
         <div
@@ -80,9 +80,9 @@ export default async function MarketsPage({
         />
       </div>
 
-      {/* Featured metals — compact navigation only, no fabricated data. */}
+      {/* Featured commodities — compact navigation only, no fabricated data. */}
       <div className="mt-10">
-        <Label>Jump to a metal</Label>
+        <Label>Jump to a commodity</Label>
         <ul className="mt-3 flex flex-wrap gap-2">
           {rows.map((row) => (
             <li key={row.slug}>
@@ -114,13 +114,13 @@ export default async function MarketsPage({
       {/* Enquiry CTA */}
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">
         <Link href="/enquire/supply" className={buttonVariants()}>
-          I have metal to sell
+          I have material to supply
         </Link>
         <Link
           href="/enquire/buying-requirement"
           className={buttonVariants({ variant: "secondary" })}
         >
-          I want to source metal
+          I want to source material
         </Link>
       </div>
     </Section>

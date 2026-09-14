@@ -315,7 +315,7 @@ export default function StyleGuidePage() {
           </div>
           <div>
             <Label>H1</Label>
-            <H1 className="mt-1">Connecting global metal supply</H1>
+            <H1 className="mt-1">A licensed mineral aggregator</H1>
           </div>
           <div>
             <Label>H2</Label>
