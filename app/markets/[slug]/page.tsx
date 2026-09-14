@@ -46,13 +46,13 @@ function CtaRow({ slug }: { slug: string }) {
         href={`/enquire/supply?metal=${slug}`}
         className={buttonVariants()}
       >
-        I have this metal to sell
+        I have this to supply
       </Link>
       <Link
         href={`/enquire/buying-requirement?metal=${slug}`}
         className={buttonVariants({ variant: "secondary" })}
       >
-        I want to source this metal
+        I want to source this
       </Link>
     </div>
   )
@@ -84,8 +84,10 @@ export default async function MetalDetailPage({
         <Breadcrumb items={crumbs} />
         <Label className="mt-6 block">{metal.category}</Label>
         <H1 className="mt-2">
-          {metal.name}{" "}
-          <span className="text-muted-foreground">{metal.symbol}</span>
+          {metal.name}
+          {metal.symbol ? (
+            <span className="text-muted-foreground">{" "}{metal.symbol}</span>
+          ) : null}
         </H1>
         <Lead className="mt-4">{metal.summary}</Lead>
 
@@ -155,8 +157,10 @@ export default async function MetalDetailPage({
         <Breadcrumb items={crumbs} />
         <Label className="mt-6 block">{metal.category}</Label>
         <H1 className="mt-2">
-          {metal.name}{" "}
-          <span className="text-muted-foreground">{metal.symbol}</span>
+          {metal.name}
+          {metal.symbol ? (
+            <span className="text-muted-foreground">{" "}{metal.symbol}</span>
+          ) : null}
         </H1>
         <Lead className="mt-4">{metal.summary}</Lead>
         <div className="mt-6">
@@ -179,8 +183,8 @@ export default async function MetalDetailPage({
       <Section surface="muted">
         <SectionHeading
           eyebrow="Physical material"
-          title="Forms, grades, and documentation"
-          lead="Specifications are indicative and confirmed per transaction. The trade desk aligns grade, assay, and documentation to each requirement."
+          title="Forms and documentation"
+          lead="Forms, grades, and documentation are confirmed per enquiry and aligned to each requirement."
         />
         <div className="mt-8 grid gap-8 lg:grid-cols-2 lg:gap-12">
           <AssetImage
@@ -194,16 +198,22 @@ export default async function MetalDetailPage({
               <FormsIcon className="size-5 text-muted-foreground" />
               <Label className="text-muted-foreground">Traded forms</Label>
             </div>
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {metal.forms.map((form) => (
-                <li
-                  key={form}
-                  className="rounded-pill border border-border bg-surface px-3 py-1 text-body-s text-foreground"
-                >
-                  {form}
-                </li>
-              ))}
-            </ul>
+            {metal.forms?.length ? (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {metal.forms.map((form) => (
+                  <li
+                    key={form}
+                    className="rounded-pill border border-border bg-surface px-3 py-1 text-body-s text-foreground"
+                  >
+                    {form}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-body-s text-muted-foreground">
+                Forms and specifications are confirmed per enquiry.
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-8">

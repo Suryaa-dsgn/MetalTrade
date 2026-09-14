@@ -32,7 +32,7 @@ export function MetalCard({ metal }: { metal: MetalSummary }) {
           <H3 className="text-h4">{metal.name}</H3>
         </div>
         <p className="mt-1 text-body-s text-muted-foreground">
-          {metal.forms.join(" · ")}
+          {metal.forms?.length ? metal.forms.join(" · ") : "Forms confirmed per enquiry"}
         </p>
 
         <div className="mt-4 flex items-baseline justify-between gap-2">

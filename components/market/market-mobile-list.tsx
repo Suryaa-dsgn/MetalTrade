@@ -50,9 +50,11 @@ export function MarketMobileList({
                 >
                   {d.name}
                 </Link>
-                <span className="ml-2 text-body-s text-muted-foreground">
-                  {d.symbol}
-                </span>
+                {d.symbol ? (
+                  <span className="ml-2 text-body-s text-muted-foreground">
+                    {d.symbol}
+                  </span>
+                ) : null}
               </div>
               <MarketStatus status={d.status} />
             </div>

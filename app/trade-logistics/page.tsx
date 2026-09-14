@@ -19,7 +19,7 @@ import { LogisticsFaq } from "@/components/trade/logistics-faq"
 export const metadata: Metadata = {
   title: "Trade & Logistics",
   description:
-    "How physical metal trades move from source to destination: the trade lifecycle, coordination, transport modes, and Incoterms. General references; scope is agreed per transaction.",
+    "How physical commodity trades move from origin to destination: the trade lifecycle, coordination, transport modes, and Incoterms. General references; scope is agreed per transaction.",
 }
 
 export default function TradeLogisticsPage() {
@@ -32,7 +32,7 @@ export default function TradeLogisticsPage() {
         <SectionHeading
           eyebrow="The trade lifecycle"
           title="A typical trade, stage by stage"
-          lead="Physical metal moves through a coordinated sequence, from confirmation and verification to freight, customs, and delivery."
+          lead="Physical commodities move through a coordinated sequence, from confirmation and inspection to freight and origin customs."
         />
         <div className="mt-8">
           <LogisticsTimeline />
@@ -46,8 +46,8 @@ export default function TradeLogisticsPage() {
       <Section surface="muted">
         <SectionHeading
           eyebrow="Coordination"
-          title="What the trade desk coordinates"
-          lead="Supporting capability categories, arranged where agreed in the transaction."
+          title="What we coordinate"
+          lead="The company coordinates inspection, freight, and customs at the origin. The buyer handles customs at the destination, and financing is not provided."
         />
         <div className="mt-8">
           <CapabilityModules />
@@ -90,8 +90,8 @@ export default function TradeLogisticsPage() {
           <div className="max-w-[46ch]">
             <H2 className="text-mineral-foreground">Planning a route?</H2>
             <Lead className="mt-4 text-mineral-foreground/80">
-              Share origin, destination, commodity, quantity, and timing, and the
-              trade desk will review feasibility with you.
+              Share origin, destination, commodity, quantity, and timing, and we
+              will review feasibility with you.
             </Lead>
           </div>
           <div className="mt-8">

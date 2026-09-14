@@ -15,91 +15,103 @@ export type OperatingStep = {
 export type MetalCategory = { name: string; metals: string; href: string }
 export type DueDiligenceRow = { term: string; detail: string }
 
-// Typical / supporting role — not a mandatory contractual six-step process.
+// Aggregator operating model (Phase 9B). Suppliers and buyers are not introduced
+// to each other; the company sits between them as the aggregator.
 export const operatingModel: OperatingStep[] = [
   {
-    key: "source",
-    label: "Source",
+    key: "aggregate",
+    label: "Aggregate",
     description:
-      "Identify material from mines, refiners, processors, and traders.",
+      "Source material from suppliers, currently in Africa and open to other regions.",
   },
   {
-    key: "evaluate",
-    label: "Evaluate",
+    key: "review",
+    label: "Review",
+    description: "Review material type, quantity, location, and documents.",
+  },
+  {
+    key: "inspect",
+    label: "Inspect",
+    description: "Our engineer inspects the supplier's facility and goods.",
+  },
+  {
+    key: "verify",
+    label: "Verify",
     description:
-      "Review specification, documentation, and origin where relevant.",
-  },
-  {
-    key: "connect",
-    label: "Connect",
-    description: "Match qualified supply to qualified demand.",
-  },
-  {
-    key: "negotiate",
-    label: "Negotiate",
-    description: "Support commercial terms and Incoterms, per transaction.",
+      "Independent third-party inspection and testing when a vetted buyer is in place.",
   },
   {
     key: "coordinate",
     label: "Coordinate",
-    description:
-      "Coordinate inspection, freight, and documentation where agreed.",
+    description: "Coordinate freight and customs at the origin airport or port.",
   },
   {
     key: "deliver",
     label: "Deliver",
-    description: "Confirm delivery at the agreed destination.",
+    description:
+      "Deliver to the vetted buyer, who handles customs at the destination.",
   },
 ]
 
 export const operatingModelNote =
-  "This is a typical role. The exact involvement and sequence vary by transaction, material, counterparties, and commercial terms."
+  "This is a typical sequence. Involvement and steps vary by transaction, material, counterparties, and commercial terms."
 
-// Platform market categories — not a claim that every category is actively
-// traded (amendment 5). Drawn from the established catalogue; links to markets.
+// Confirmed public commodity catalogue, grouped for the company page; links to
+// the markets pages. Availability and specifications are confirmed per enquiry.
 export const metalCategories: MetalCategory[] = [
-  { name: "Base metals", metals: "Copper · Aluminium · Nickel · Zinc", href: "/markets" },
   { name: "Precious metals", metals: "Gold", href: "/markets" },
-  { name: "Battery & energy", metals: "Lithium", href: "/markets" },
+  { name: "Base metals", metals: "Copper · Tin · Lead-Zinc", href: "/markets" },
+  { name: "Bulk & ferrous", metals: "Manganese · Iron Ore", href: "/markets" },
+  {
+    name: "Battery & technology",
+    metals: "Lithium · Coltan · Rare Earth Elements",
+    href: "/markets",
+  },
+  { name: "Industrial minerals", metals: "Barite", href: "/markets" },
+  { name: "Energy", metals: "Crude Oil · Bitumen", href: "/markets" },
 ]
 
 export const metalCategoriesNote =
-  "Market categories covered across the platform. Availability and specific materials are confirmed per engagement."
+  "The commodities we handle across the platform. Availability and specifications are confirmed per enquiry."
 
-// Responsible sourcing — process / provenance / material evidence (checklist).
+// Verification checklist: client-confirmed items only (Phase 9B). No KYB,
+// beneficial-ownership, or sanctions claims are asserted (not confirmed).
 export const responsibleSourcing: string[] = [
-  "Supplier due diligence, where relevant to the counterparty and material.",
-  "Origin documentation, where available for the material.",
-  "Counterparty screening, where relevant to the transaction.",
-  "Material verification through inspection or assay, where agreed.",
-  "Trade and transport documentation, prepared and checked.",
-  "Delivery confirmation at the agreed destination.",
+  "Supplier verification before a trade progresses.",
+  "Origin documentation reviewed where available.",
+  "Inspection of the supplier's facility and goods by our engineer.",
+  "Independent third-party inspection and testing when a vetted buyer is in place.",
+  "Licence, permit, and company registration numbers available for verification on request.",
 ]
 
-// Due diligence — counterparty / ownership / sanctions-export / document review.
+// Verification approach on request. Licensing documents are NOT posted publicly
+// (they can be copied); numbers are shared with vetted parties on request.
 export const dueDiligence: DueDiligenceRow[] = [
   {
-    term: "Counterparty qualification",
-    detail: "May include know-your-business (KYB) checks, where relevant.",
+    term: "Supplier verification",
+    detail: "Suppliers are verified before a trade progresses.",
   },
   {
-    term: "Beneficial ownership",
-    detail: "Ownership review may be requested, subject to transaction review.",
+    term: "Origin documentation",
+    detail: "Origin documents are reviewed where available.",
   },
   {
-    term: "Sanctions & export controls",
-    detail: "Screening may apply according to jurisdiction and counterparties.",
+    term: "Independent inspection",
+    detail:
+      "Independent third-party inspection and testing is arranged when a vetted buyer is in place.",
   },
   {
-    term: "Document review",
-    detail: "Trade and ownership documents are reviewed where provided.",
+    term: "Licensure on request",
+    detail:
+      "Company registration and licence or permit numbers are provided for verification on request from vetted suppliers and buyers. Documents are not posted publicly.",
   },
 ]
 
 export const dueDiligenceLimitation =
-  "The scope and depth of any review depend on the transaction, jurisdiction, and counterparties. This is not a certification or a compliance guarantee."
+  "The scope of any review depends on the transaction, material, and counterparties. This is not a certification or a compliance guarantee."
 
-export const regionsNote = "Regions served are confirmed per engagement."
+export const regionsNote =
+  "Suppliers are currently based in Africa, and we are open to suppliers from other regions. Buyers are industrial companies and financial institutions in Asia and the Middle East."
 
 export const proofNote =
-  "Verified operating facts, approved partners, and metrics will be published here once confirmed."
+  "Verified operating facts and approved metrics are published as they are confirmed."

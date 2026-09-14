@@ -10,7 +10,7 @@ import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 export type DisplayRow = {
   slug: string
   name: string
-  symbol: string
+  symbol?: string
   category: string
   status: MarketRow["status"]
   priceLabel: string

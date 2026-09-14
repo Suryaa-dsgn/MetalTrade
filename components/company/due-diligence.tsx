@@ -1,10 +1,10 @@
 import { dueDiligence, dueDiligenceLimitation } from "@/data/config/company"
 
 /*
-  Due diligence — counterparty / ownership / sanctions-export / document review,
-  as compact policy rows (distinct treatment). Each row carries its own "may
-  include / where relevant" qualifier; the limitation note states scope, not a
-  certification (Blueprint §8, amendment 2/3).
+  Verification-on-request rows (Phase 9B): supplier verification, origin
+  documentation, independent inspection, and licence/permit verification on
+  request. Client-confirmed items only; no KYB/sanctions/certification claims.
+  The limitation note states scope, not a certification.
 */
 export function DueDiligence() {
   return (

@@ -14,11 +14,12 @@ import { MetalCategories } from "@/components/company/metal-categories"
 import { ResponsibleSourcing } from "@/components/company/responsible-sourcing"
 import { DueDiligence } from "@/components/company/due-diligence"
 import { ProofPoints } from "@/components/company/proof-points"
+import { regionsNote } from "@/data/config/company"
 
 export const metadata: Metadata = {
   title: "Company",
   description:
-    "How the trade desk connects verified metal supply with qualified demand: the operating model, trade assurance, responsible sourcing, and due diligence. Working copy; details confirmed per engagement.",
+    "How Oriental Energy and Minerals Limited operates as a licensed mineral aggregator: the operating model, commodities, trade assurance, verification, and regions. Details confirmed per enquiry.",
 }
 
 export default function CompanyPage() {
@@ -31,22 +32,28 @@ export default function CompanyPage() {
         <SectionHeading
           eyebrow="How we work"
           title="Our role in the value chain"
-          lead="A trade desk between qualified supply and qualified demand, evaluating, connecting, and coordinating each transaction."
+          lead="As the aggregator, we sit between reviewed supply and vetted demand, reviewing, inspecting, and coordinating each transaction. Suppliers and buyers are not introduced to each other."
         />
         <div className="mt-8">
           <OperatingModel />
         </div>
       </Section>
 
-      {/* Market categories — link list */}
+      {/* Commodities — link list */}
       <Section surface="muted">
-        <SectionHeading
-          eyebrow="Materials"
-          title="Market categories"
-        />
+        <SectionHeading eyebrow="Commodities" title="Commodities we handle" />
         <div className="mt-8 max-w-2xl">
           <MetalCategories />
         </div>
+      </Section>
+
+      {/* Regions and counterparties */}
+      <Section>
+        <SectionHeading
+          eyebrow="Regions and counterparties"
+          title="Where we work"
+          lead={regionsNote}
+        />
       </Section>
 
       {/* Trade assurance — reused stepper */}
@@ -54,7 +61,7 @@ export default function CompanyPage() {
         <SectionHeading
           eyebrow="Trade assurance"
           title="Trust from process and evidence"
-          lead="Grade, purity, origin, assay, inspection, documentation, Incoterm, delivery. A sequence applied to each transaction."
+          lead="Counterparty verification, material review, origin documentation, independent inspection, and coordinated origin logistics: a sequence applied to each transaction."
         />
         <div className="mt-8">
           <TrustFramework />
@@ -66,19 +73,19 @@ export default function CompanyPage() {
         <SectionHeading
           eyebrow="Responsible sourcing"
           title="Provenance and material evidence"
-          lead="Process and documentation applied where relevant to the counterparty and material."
+          lead="The checks and documentation we apply before and during a trade."
         />
         <div className="mt-8">
           <ResponsibleSourcing />
         </div>
       </Section>
 
-      {/* Due diligence — compact policy rows */}
+      {/* Verification on request — compact rows */}
       <Section>
         <SectionHeading
-          eyebrow="Due diligence"
-          title="Counterparty and document review"
-          lead="Applied per transaction and jurisdiction. The scope of any review is transaction-specific."
+          eyebrow="Verification"
+          title="Verification on request"
+          lead="Verification we can provide to vetted suppliers and buyers on request. Licensing documents are not posted publicly, because they can be copied."
         />
         <div className="mt-8">
           <DueDiligence />
@@ -97,9 +104,7 @@ export default function CompanyPage() {
       <section className="bg-mineral text-mineral-foreground">
         <Container className="py-20 md:py-24">
           <div className="max-w-[46ch]">
-            <H2 className="text-mineral-foreground">
-              Work with the trade desk
-            </H2>
+            <H2 className="text-mineral-foreground">Work with our team</H2>
             <Lead className="mt-4 text-mineral-foreground/80">
               Tell us what you have or what you need, and a member of the team
               will review it with you.

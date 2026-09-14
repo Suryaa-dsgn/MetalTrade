@@ -24,13 +24,13 @@ type Step = {
 }
 
 const steps: Step[] = [
-  { n: "01", title: "Know the counterparty", detail: "Qualification may include KYB, beneficial ownership, and sanctions review.", Icon: CounterpartyIcon },
-  { n: "02", title: "Know the material", detail: "Form, grade, and specification captured up front.", Icon: MetalIcon },
-  { n: "03", title: "Know the origin", detail: "Origin and provenance documentation where available.", Icon: SourceIcon },
-  { n: "04", title: "Verify the material", detail: "Independent inspection and assay coordinated where agreed.", Icon: AssayIcon },
+  { n: "01", title: "Verify the counterparty", detail: "Supplier verification and buyer vetting before a trade progresses.", Icon: CounterpartyIcon },
+  { n: "02", title: "Review the material", detail: "Material type, quantity, location, and documents reviewed.", Icon: MetalIcon },
+  { n: "03", title: "Document the origin", detail: "Origin documentation reviewed where available.", Icon: SourceIcon },
+  { n: "04", title: "Inspect and test", detail: "Engineer inspection, then independent third-party inspection and testing when a vetted buyer is in place.", Icon: AssayIcon },
   { n: "05", title: "Structure the trade", detail: "Terms, Incoterms, and documentation aligned before movement.", Icon: ProcessIcon },
-  { n: "06", title: "Control the movement", detail: "Freight, customs, and transport documents coordinated.", Icon: ContainerIcon },
-  { n: "07", title: "Confirm delivery", detail: "Delivery confirmation closes the transaction record.", Icon: VerifiedIcon },
+  { n: "06", title: "Coordinate origin logistics", detail: "Freight and origin customs coordinated; the buyer handles destination customs.", Icon: ContainerIcon },
+  { n: "07", title: "Confirm delivery", detail: "Delivery confirmed to the vetted buyer.", Icon: VerifiedIcon },
 ]
 
 export function TrustFramework() {

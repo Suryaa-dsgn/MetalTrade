@@ -49,13 +49,13 @@ export function CtaBand() {
         </div>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/enquire/supply" className={buttonVariants({ size: "lg" })}>
-            I have metal to sell
+            I have material to supply
           </Link>
           <Link
             href="/enquire/buying-requirement"
             className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
-            I want to source metal
+            I want to source material
           </Link>
         </div>
       </Container>

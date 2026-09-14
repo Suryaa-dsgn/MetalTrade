@@ -39,27 +39,29 @@ export function HomeHero() {
       <Container className="relative z-10 pt-28 pb-16 md:pt-32 md:pb-20 lg:pb-24">
         <div className="max-w-2xl">
           <Label className="text-mineral-foreground/70">
-            Physical metals · global trade
+            Minerals and commodities · international trade
           </Label>
           <Display className="mt-4 text-balance text-mineral-foreground">
-            Connecting global metal supply with qualified demand.
+            A licensed mineral aggregator connecting physical commodity supply
+            with vetted demand.
           </Display>
-          <Lead className="mt-5 max-w-[46ch] text-mineral-foreground/85">
-            From verified sources to qualified buyers with market context,
-            material evidence, and controlled logistics at every stage.
+          <Lead className="mt-5 max-w-[48ch] text-mineral-foreground/85">
+            We aggregate physical commodities from reviewed suppliers and
+            coordinate inspection, freight, and origin logistics through to
+            vetted corporate and institutional buyers.
           </Lead>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/enquire/supply"
               className={buttonVariants({ size: "lg" })}
             >
-              I have metal to sell
+              I have material to supply
             </Link>
             <Link
               href="/enquire/buying-requirement"
               className={buttonVariants({ variant: "outlineInverse", size: "lg" })}
             >
-              I want to source metal
+              I want to source material
             </Link>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import type { MarketRow } from "@/lib/market/types"
@@ -21,10 +21,13 @@ import { MarketTableSkeleton } from "@/components/market/market-table-skeleton"
 
 /*
   Client orchestrator. Holds filter state (source of truth), derives visible
-  rows, and syncs to the URL via router.replace (not push). Search filters
-  locally immediately; the URL write for `q` is debounced ~250ms; all other
-  controls update the URL immediately (amendment 7). `forcedState` (dev-only)
-  drives loading/error rendering; "stale" only affects the page freshness banner.
+  rows, and syncs to the URL via router.replace (not push). Event handlers only
+  mutate local filter state; URL synchronization runs in an effect AFTER render
+  (never inside a setState updater — that would update the Router while rendering).
+  Search filters locally immediately; the URL write for `q` is debounced ~250ms;
+  all other controls update the URL immediately (amendment 7). `forcedState`
+  (dev-only) drives loading/error rendering; "stale" only affects the page
+  freshness banner.
 */
 export function MarketsExplorer({
   rows,
@@ -40,52 +43,62 @@ export function MarketsExplorer({
   const router = useRouter()
   const pathname = usePathname()
   const [filters, setFilters] = useState<MarketFilters>(initial)
-  const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Filter values already reflected in the URL. Seeded from `initial` (parsed
+  // from the incoming URL) so the first effect run is a no-op and any dev-only
+  // `state` param survives the initial render.
+  const syncedRef = useRef<MarketFilters>(initial)
 
-  const pushUrl = useCallback(
-    (next: MarketFilters) => {
-      const qs = serializeMarketFilters(next).toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-    },
-    [router, pathname]
-  )
+  // Handlers mutate local filter state ONLY. Local filtering/sorting is derived
+  // from `filters` below, so it stays immediate regardless of URL timing.
+  const update = useCallback((patch: Partial<MarketFilters>) => {
+    setFilters((prev) => ({ ...prev, ...patch }))
+  }, [])
 
-  const update = useCallback(
-    (patch: Partial<MarketFilters>) => {
-      setFilters((prev) => {
-        const next = { ...prev, ...patch }
-        pushUrl(next)
-        return next
+  const onQChange = useCallback((q: string) => {
+    setFilters((prev) => ({ ...prev, q }))
+  }, [])
+
+  const onSort = useCallback((field: SortField) => {
+    setFilters((prev) =>
+      prev.sort === field
+        ? { ...prev, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { ...prev, sort: field, dir: "asc" }
+    )
+  }, [])
+
+  // URL synchronization, after render. Guarded against redundant replaces (which
+  // also prevents any URL<->state loop): only replace when the serialized filter
+  // query actually differs from what the URL already holds. `q`-only changes are
+  // debounced ~250ms to avoid history spam while typing; every other control
+  // writes immediately. The dev/QA `state` param is intentionally dropped on a
+  // filter change (it is never part of serializeMarketFilters), matching prior
+  // behaviour.
+  useEffect(() => {
+    const synced = syncedRef.current
+    const desired = serializeMarketFilters(filters).toString()
+    if (desired === serializeMarketFilters(synced).toString()) return
+
+    const onlyQChanged =
+      synced.category === filters.category &&
+      synced.sort === filters.sort &&
+      synced.dir === filters.dir &&
+      synced.unit === filters.unit &&
+      synced.currency === filters.currency &&
+      synced.q !== filters.q
+
+    const write = () => {
+      syncedRef.current = filters
+      router.replace(desired ? `${pathname}?${desired}` : pathname, {
+        scroll: false,
       })
-    },
-    [pushUrl]
-  )
+    }
 
-  const onQChange = useCallback(
-    (q: string) => {
-      setFilters((prev) => {
-        const next = { ...prev, q }
-        if (qTimer.current) clearTimeout(qTimer.current)
-        qTimer.current = setTimeout(() => pushUrl(next), 250)
-        return next
-      })
-    },
-    [pushUrl]
-  )
-
-  const onSort = useCallback(
-    (field: SortField) => {
-      setFilters((prev) => {
-        const next: MarketFilters =
-          prev.sort === field
-            ? { ...prev, dir: prev.dir === "asc" ? "desc" : "asc" }
-            : { ...prev, sort: field, dir: "asc" }
-        pushUrl(next)
-        return next
-      })
-    },
-    [pushUrl]
-  )
+    if (onlyQChanged) {
+      const t = setTimeout(write, 250)
+      return () => clearTimeout(t)
+    }
+    write()
+  }, [filters, pathname, router])
 
   // Honest retry: drop any dev forced-error state and return to normal data.
   const onRetry = useCallback(() => {

@@ -4,7 +4,7 @@ import { CATALOGUE_METAL_SLUGS } from "@/data/config/enquiry"
 import { SupplierForm } from "@/components/forms/supplier-form"
 
 export const metadata: Metadata = {
-  title: "Sell metal",
+  title: "Supply material",
   description:
     "Bring a supply position to qualified demand. Development demo. No CRM or email submission occurs.",
 }

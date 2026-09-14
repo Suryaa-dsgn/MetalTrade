@@ -1,10 +1,17 @@
-# Metal Trading Portal
+# Oriental Energy and Minerals Limited
 
-A trust-first B2B website for a physical metals trading and market-intelligence
-business. It connects verified metal supply with qualified demand, presents market
-benchmarks and context, explains trade and logistics capability, and captures
-structured supplier, buyer, and logistics enquiries. The site does not execute
-trades; it qualifies and routes demand to a human trade desk.
+A trust-first B2B website for a licensed mineral aggregator. The company sources
+physical commodities from reviewed suppliers and coordinates inspection, freight,
+and origin logistics to vetted corporate and institutional buyers; suppliers and
+buyers are not introduced to each other. The site presents market benchmarks and
+context, explains the operating model and logistics boundaries, and captures
+structured supplier, buyer, and logistics enquiries.
+
+Client-specific business copy lives in `data/config/*` (`site.ts`, `company.ts`,
+`logistics.ts`, `enquiry.ts`) and the commodity catalogue in `data/mock/metals.ts`
+(12 confirmed commodities; only Copper/Gold/Lithium carry sample market data, the
+rest show "in preparation"). Claim boundaries are tracked in
+`docs/content-claims-register.md`.
 
 The current build runs entirely on mock/demo data. Market quotes, historical
 charts, and enquiry delivery sit behind provider interfaces and stay on

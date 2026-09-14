@@ -98,7 +98,7 @@ export function filterRows(
     if (!q) return true
     return (
       row.name.toLowerCase().includes(q) ||
-      row.symbol.toLowerCase().includes(q) ||
+      (row.symbol?.toLowerCase().includes(q) ?? false) ||
       row.category.toLowerCase().includes(q)
     )
   })

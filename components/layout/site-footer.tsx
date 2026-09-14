@@ -20,7 +20,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <Logo />
-            {/* Working positioning (Blueprint §1); client validation pending. */}
+            {/* Client-confirmed positioning (Phase 9B). */}
             <BodyS className="mt-3 max-w-[36ch] text-muted-foreground">
               {siteConfig.positioning}
             </BodyS>
@@ -60,9 +60,8 @@ export function SiteFooter() {
         </BodyS>
 
         <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          {/* TODO(client): legal entity name and © holder pending approval. */}
           <BodyS className="text-muted-foreground">
-            © {year} {siteConfig.name}. Working title, pending client approval.
+            © {year} {siteConfig.legalName}.
           </BodyS>
           <ul className="flex flex-wrap gap-x-5 gap-y-2">
             {legalLinks.map((item) => (

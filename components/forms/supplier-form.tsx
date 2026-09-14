@@ -83,9 +83,9 @@ export function SupplierForm({ defaultMetal }: { defaultMetal?: string }) {
 
   return (
     <EnquiryShell
-      breadcrumb={[{ label: "Contact", href: "/contact" }, { label: "Sell metal" }]}
-      title="I have metal to sell"
-      intro="Share a supply position and the trade desk will review it. Only your details, the metal, and a quantity are required."
+      breadcrumb={[{ label: "Contact", href: "/contact" }, { label: "Supply material" }]}
+      title="I have material to supply"
+      intro="Share a supply position and we will review it before progressing to inspection. Opportunities are reviewed first; there is no automatic acceptance or buyer matching. Only your details, the commodity, and a quantity are required."
     >
       {isSuccess && referenceId ? (
         <EnquirySuccess referenceId={referenceId} />
@@ -169,12 +169,12 @@ export function SupplierForm({ defaultMetal }: { defaultMetal?: string }) {
           >
             <SelectField
               name="metal"
-              label="Metal"
+              label="Commodity"
               control={control}
               error={errors.metal?.message}
               required
               options={metalOptions}
-              placeholder="Select a metal"
+              placeholder="Select a commodity"
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField

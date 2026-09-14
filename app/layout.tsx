@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Metal Trading Portal",
-    template: "%s · Metal Trading Portal",
+    default: "Oriental Energy and Minerals",
+    template: "%s · Oriental Energy and Minerals",
   },
   description:
-    "Physical metals trading, sourcing, logistics, and market-intelligence portal.",
+    "Licensed mineral aggregator: physical commodity sourcing, verification, logistics coordination, and market-intelligence portal.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

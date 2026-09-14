@@ -26,13 +26,18 @@ export type MarketQuote = {
   status: MarketStatus
 }
 
-/** Editorial metal record for "What we trade" cards and metal pages. */
+/** Editorial commodity record for "What we trade" cards and detail pages. */
 export type Metal = {
   slug: string
   name: string
-  symbol: string
+  /** Market identifier, only for commodities with an approved/sample market
+   *  identity (Cu, Au, Li). Omitted for commodities without one: no fabricated
+   *  exchange-like codes. */
+  symbol?: string
   category: string
-  forms: string[]
+  /** Client-confirmed physical forms only. Omitted where forms are confirmed
+   *  per enquiry: no invented forms/grades/specifications. */
+  forms?: string[]
   summary: string
   image: ImageAsset
 }
@@ -48,7 +53,7 @@ export type MetalSummary = Metal & { quote: MarketQuote }
 export type MarketRow = {
   slug: string
   name: string
-  symbol: string
+  symbol?: string // omitted for commodities without an approved market identity
   category: string
   price: number | null
   currency: string // ISO 4217

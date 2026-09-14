@@ -69,4 +69,63 @@ export const metalAssets = {
     focalPoint: { x: 50, y: 50 },
     available: true,
   },
+
+  // Phase 9B commodities: identities confirmed, imagery not yet supplied. These
+  // stay `available: false` so the card renders the neutral AssetPlaceholder;
+  // a future asset pass drops a cleared image into `src` and flips `available`
+  // with no component change. No fetched or invented imagery.
+  tin: {
+    id: "metal-tin",
+    src: "/images/metals/tin.webp",
+    alt: "Tin: reference image to be supplied.",
+    available: false,
+  },
+  "lead-zinc": {
+    id: "metal-lead-zinc",
+    src: "/images/metals/lead-zinc.webp",
+    alt: "Lead-zinc: reference image to be supplied.",
+    available: false,
+  },
+  manganese: {
+    id: "metal-manganese",
+    src: "/images/metals/manganese.webp",
+    alt: "Manganese: reference image to be supplied.",
+    available: false,
+  },
+  "iron-ore": {
+    id: "metal-iron-ore",
+    src: "/images/metals/iron-ore.webp",
+    alt: "Iron ore: reference image to be supplied.",
+    available: false,
+  },
+  coltan: {
+    id: "metal-coltan",
+    src: "/images/metals/coltan.webp",
+    alt: "Columbite-tantalite (coltan): reference image to be supplied.",
+    available: false,
+  },
+  ree: {
+    id: "metal-ree",
+    src: "/images/metals/rare-earth-elements.webp",
+    alt: "Rare earth elements: reference image to be supplied.",
+    available: false,
+  },
+  barite: {
+    id: "metal-barite",
+    src: "/images/metals/barite.webp",
+    alt: "Barite: reference image to be supplied.",
+    available: false,
+  },
+  bitumen: {
+    id: "metal-bitumen",
+    src: "/images/metals/bitumen.webp",
+    alt: "Bitumen: reference image to be supplied.",
+    available: false,
+  },
+  "crude-oil": {
+    id: "metal-crude-oil",
+    src: "/images/metals/crude-oil.webp",
+    alt: "Crude oil: reference image to be supplied.",
+    available: false,
+  },
 } satisfies Record<string, ImageAsset>
