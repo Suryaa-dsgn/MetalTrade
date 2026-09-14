@@ -1,8 +1,50 @@
-# Market Provider Readiness — MetalpriceAPI
+# Market Provider Readiness
 
 Operational record for the live market-data integration. Verified against real
-API responses on 2026-09-14. Update this file whenever the plan or verified
-capabilities change.
+API responses on 2026-09-14. Update this file whenever a plan, verified
+capability, or commercial term changes.
+
+## Multi-provider architecture (foundation)
+
+```
+UI → MarketService → BenchmarkRegistry → ProviderRouter → provider adapters
+                  ↘ Normalization (Zod-validated) + sanity/units
+                  ↘ MarketObservationRepository (last-known-good; in-memory now)
+                  ↘ provider health + structured events
+```
+
+- **BenchmarkRegistry** (`lib/market/benchmarks.ts`) is the single source of
+  routing truth. Commodity identity (slug) is separate from benchmark identity
+  (`benchmarkId`, e.g. `gold-spot`, `copper-lme-3m`, `brent-crude`).
+- **ProviderRouter** (`providers/router.ts`) maps a provider id to its adapter;
+  not-yet-integrated providers resolve to null and the service falls back.
+- **Repository** (`repository/`) holds last-known-good behind an interface; the
+  in-memory implementation is per instance and does not survive a cold start (no
+  database yet, by design).
+- **Provider health** (`providers/health.ts`) is tracked separately from
+  benchmark availability — a healthy provider can still omit a benchmark.
+- Commercial/licensing terms are NOT in the registry (only a
+  `publicDisplayApproved` gate); they live in this document.
+
+### Provider assignments (approved)
+
+| Commodity | Benchmark | Provider | Status |
+|---|---|---|---|
+| Gold | `gold-spot` | MetalpriceAPI | **live** (Free) |
+| Copper | `copper-lme-3m` (LME Copper 3M) | Metals.Dev | planned — research/verify next |
+| Lead | (separate) | Metals.Dev | planned |
+| Zinc | (separate) | Metals.Dev | planned |
+| Crude Oil | `brent-crude` (**Brent Crude**, named explicitly) | EIA | planned — after Metals.Dev |
+| Lithium | `lithium-proxy` | MetalpriceAPI (paid) | sample; semantic review required |
+| Lead-Zinc (combined slug) | — | — | never one blended number |
+| Tin / Iron Ore / REE / Manganese / Coltan / Barite / Bitumen | — | — | paid-gated / proxy / no benchmark |
+
+Commercial/redistribution terms for Metals.Dev and EIA must be confirmed by the
+client for the chosen plan **before** `publicDisplayApproved` is set.
+
+---
+
+## MetalpriceAPI
 
 ## Current state
 

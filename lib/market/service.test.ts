@@ -125,6 +125,19 @@ describe("market service (registry-driven mixed source)", () => {
     expect(meta.source).toBe("mock")
   })
 
+  it("provider health is separate from benchmark availability", async () => {
+    // Healthy provider (getLatest resolves) that omits the gold benchmark.
+    getLatest.mockResolvedValue({ quotes: {}, retrievedAt: "2026-09-14T10:00:00.000Z" })
+    const svc = await freshService()
+    const { data } = await svc.getMarketTable()
+    const { providerHealth } = await import("@/lib/market/providers/health")
+
+    // Provider is HEALTHY (a success was recorded)...
+    expect(providerHealth.get("metalpriceapi").lastSuccessAt).not.toBeNull()
+    // ...even though the individual benchmark is UNAVAILABLE.
+    expect(data.find((r) => r.slug === "gold")!.source).toBe("unavailable")
+  })
+
   it("production never silently substitutes mock for a failed live benchmark", async () => {
     const prev = process.env.NODE_ENV
     // @ts-expect-error test override

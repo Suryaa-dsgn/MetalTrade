@@ -14,6 +14,7 @@ import {
   getProvider,
   isProviderImplemented,
 } from "@/lib/market/providers/router"
+import { providerHealth } from "@/lib/market/providers/health"
 import type {
   FetchLatestResult,
   ProviderBenchmarkRequest,
@@ -109,6 +110,7 @@ async function fetchLatest(
     return { ok: true, result: cached.data }
   }
   logger.info("market.cache.miss", { provider: provider.id })
+  providerHealth.recordAttempt(provider.id)
   try {
     if (serverConfig.marketSimulateFailure && provider.sourceType === "live") {
       throw Object.assign(new Error("simulated failure"), { code: "network" })
@@ -116,6 +118,7 @@ async function fetchLatest(
     logger.info("market.fetch.started", { provider: provider.id, count: requests.length })
     const result = await provider.getLatest(requests)
     providerCache.set(provider.id, { data: result, at: now })
+    providerHealth.recordSuccess(provider.id, result.quota)
     logger.info("market.fetch.success", {
       provider: provider.id,
       returned: Object.keys(result.quotes).length,
@@ -126,7 +129,11 @@ async function fetchLatest(
       err && typeof err === "object" && "code" in err
         ? String((err as { code: unknown }).code)
         : "unknown"
+    providerHealth.recordFailure(provider.id, code)
     logger.warn("market.fetch.failed", { provider: provider.id, code })
+    if (code === "rate_limit" || code === "quota") {
+      logger.warn("market.provider.rate_limited", { provider: provider.id, code })
+    }
     return { ok: false, code }
   }
 }
@@ -139,6 +146,7 @@ async function fallbackQuote(
   if (cfg.fallbackPolicy === "live-then-lastgood") {
     const good = await repository.getLastKnownGood(cfg.benchmarkId)
     if (good && good.price != null) {
+      logger.warn("market.quote.stale", { benchmarkId: cfg.benchmarkId })
       return { quote: { ...good, status: "stale", source: "live" }, degraded: true }
     }
   }
@@ -259,7 +267,14 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
               await repository.saveObservation(item.cfg.benchmarkId, quote)
             }
           }
-          if (quote.source === "unavailable" && isLive) degraded = true
+          if (quote.source === "unavailable" && isLive) {
+            // A live raw quote that failed validation/sanity in normalization.
+            logger.warn("market.quote.rejected", {
+              benchmarkId: item.cfg.benchmarkId,
+              provider: providerId,
+            })
+            degraded = true
+          }
         } else {
           // Partial response: this benchmark was omitted → its own fallback.
           const fb = await fallbackQuote(item.cfg, item.name)
