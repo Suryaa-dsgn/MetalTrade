@@ -10,6 +10,11 @@ export type MarketErrorCode = "provider_unavailable"
 
 export type MarketSource = "mock" | "live"
 
+/** Compact attribution shown in the UI (label + optional link). Populated from
+ *  the registry attribution of the live benchmarks in a read — so provider/
+ *  source acknowledgment (e.g. EIA) lives in the data layer, not in components. */
+export type SourceAttribution = { label: string; url?: string }
+
 export type ReadMeta = {
   /** Selected provider name (e.g. "mock"). */
   provider: string
@@ -21,6 +26,9 @@ export type ReadMeta = {
   degraded: boolean
   /** Present only when degraded; a safe enum, not a raw error. */
   errorCode?: MarketErrorCode
+  /** Distinct attributions of the live benchmarks in this read (for a compact
+   *  "Source: …" line). Empty when nothing live is displayed. */
+  sources?: SourceAttribution[]
 }
 
 export function okMeta(provider: string, source: MarketSource): ReadMeta {

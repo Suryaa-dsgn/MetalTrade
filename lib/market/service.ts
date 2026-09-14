@@ -301,6 +301,17 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
   const provider = anyLive ? "metalpriceapi" : "mock"
   const source = anyLive ? "live" : "mock"
   const meta = degraded ? degradedMeta(provider, source) : okMeta(provider, source)
+
+  // Attribution for a compact "Source: …" line — distinct attributions of the
+  // benchmarks actually displayed live (registry-driven, not hard-coded in the UI).
+  const sources = new Map<string, { label: string; url?: string }>()
+  for (const [slug, q] of Object.entries(bySlug)) {
+    if (q.source !== "live") continue
+    const a = getBenchmark(slug)?.attribution
+    if (a) sources.set(a.label, { label: a.label, url: a.url })
+  }
+  if (sources.size > 0) meta.sources = [...sources.values()]
+
   return { bySlug, meta }
 }
 

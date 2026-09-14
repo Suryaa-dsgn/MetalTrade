@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 
 import type { HistoryState } from "@/lib/market/types"
 import { getContentSource } from "@/lib/content/source"
+import { getBenchmark } from "@/lib/market/benchmarks"
 import { getMetalBySlug, getMetalDetail } from "@/lib/market/service"
 import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 import { Section } from "@/components/layout/section"
@@ -69,11 +70,12 @@ export default async function MetalDetailPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const { slug } = await params
-  const { data: metal } = await getMetalBySlug(slug)
+  const { data: metal, meta } = await getMetalBySlug(slug)
   if (!metal) notFound()
 
   const { data: detailData } = await getMetalDetail(slug)
   const q = metal.quote
+  const benchmark = getBenchmark(slug)
 
   const crumbs = [
     { label: "Markets", href: "/markets" },
@@ -108,13 +110,18 @@ export default async function MetalDetailPage({
           {q.price !== null ? <PriceChange change={q.change24h} /> : null}
           <span className="text-label uppercase tracking-label text-muted-foreground">
             {q.source === "live"
-              ? "Reference benchmark"
+              ? `${benchmark?.displayName ?? "Reference"} reference benchmark`
               : q.source === "sample"
                 ? "Indicative sample"
                 : "In preparation"}{" "}
-            · updated {formatUpdatedAtUTC(q.updatedAt)}
+            · as of {formatUpdatedAtUTC(q.updatedAt)}
           </span>
         </div>
+        {meta.sources?.length ? (
+          <p className="mt-2 text-label uppercase tracking-label text-muted-foreground">
+            {meta.sources.map((s) => s.label).join(" · ")}
+          </p>
+        ) : null}
 
         <div className="mt-8 rounded-lg border border-dashed border-border-strong bg-surface-subtle px-6 py-8">
           <H3 as="p" className="text-h4">

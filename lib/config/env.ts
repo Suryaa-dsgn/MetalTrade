@@ -63,6 +63,7 @@ const schema = z.object({
   // logged, never sent to the client.
   metalPriceApiKey: secret,
   metalsDevApiKey: secret,
+  eiaApiKey: secret,
 })
 
 export type ServerConfig = z.infer<typeof schema>
@@ -75,4 +76,5 @@ export const serverConfig: ServerConfig = schema.parse({
   marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
   metalPriceApiKey: process.env.METALPRICE_API_KEY,
   metalsDevApiKey: process.env.METALS_DEV_API_KEY,
+  eiaApiKey: process.env.EIA_API_KEY,
 })

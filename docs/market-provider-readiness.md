@@ -44,6 +44,23 @@ client for the chosen plan **before** `publicDisplayApproved` is set.
 
 ---
 
+## EIA — Brent Crude (LIVE, Phase D2)
+
+- **Provider:** `lib/market/providers/eia.ts`. **Status: LIVE and publicly displayed.**
+- **Base:** `https://api.eia.gov/v2/petroleum/pri/spt/data/`. **Auth:** `api_key` **query param** (EIA requires it in the URL) — server-side only; **the URL is never logged and never appears in errors**.
+- **Verified live (probe 2026-09-15):** series **`RBRTE`** (Europe Brent Spot Price FOB) → latest `period:"2026-09-09"`, `value:"109.51"` (**string**), `units:"$/BBL"`. USD **per barrel** (volume, not mass). `total` 9,974 rows since 1987; `dateFormat` YYYY-MM-DD; sort `period` desc + `length` = latest first. Bogus/empty series → HTTP 200, `total:0`, empty data → unavailable (no error).
+- **Unit:** first **volume** benchmark. `bbl` is separate from the mass table; a bbl↔mass conversion is refused (never guessed). `providerUnit === canonicalUnit === "bbl"` → identity normalization.
+- **Freshness:** daily official series that may lag a few days → `dailyBenchmark` policy (delayed, stale after 14d). UI shows "as of [period]", not real-time.
+- **Commercial / public display:** EIA data is **public-domain U.S. Government data** — commercial use permitted **without a subscription or permission**, so `publicDisplayApproved: true`. This is why Brent is displayed live while Copper/Lead/Zinc are gated.
+- **Attribution:** required acknowledgment, rendered from `EIA_ATTRIBUTION` in the data layer (compact "Source: U.S. Energy Information Administration" + a derived "as of [date]"). **No EIA logo.**
+- **Brent vs WTI:** Brent (`RBRTE`) chosen as the single primary crude benchmark — international, seaborne FOB benchmark matching OEML's orientation. WTI (`RWTC`) not used (not a proxy, not blended).
+- **Bitumen:** stays **unavailable** — WTI/Brent are **never** a Bitumen proxy.
+- **History:** deep RBRTE daily history exists and is compatible (same series); the adapter is architected to add `getHistory` through the same contract, but the **Crude chart UI is deferred** (crude is per-barrel; the mass-only chart/stat/unit-toggle infra would need a volume path). D2 ships the **live Brent quote** only.
+- **Rate limits:** EIA throttles per second/hour and temporarily suspends the key if exceeded (exact numbers not published); daily data + the 12h fetch-revalidate keeps usage trivial.
+- **Env:** `EIA_API_KEY` (server-only). Free key from eia.gov/opendata.
+
+---
+
 ## Metals.Dev (verified — Phase D2)
 
 - **Provider:** `lib/market/providers/metalsdev.ts`. **Plan:** Free (probed 2026-09-14).

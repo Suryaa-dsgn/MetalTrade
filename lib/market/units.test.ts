@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { convertMassPrice, isMassUnit } from "@/lib/market/units"
+import {
+  convertMassPrice,
+  isMassUnit,
+  isVolumeUnit,
+  isMarketUnit,
+} from "@/lib/market/units"
 
 describe("convertMassPrice", () => {
   it("is identity for the same unit", () => {
@@ -43,5 +48,26 @@ describe("isMassUnit", () => {
   it("rejects unknown units", () => {
     expect(isMassUnit("barrel")).toBe(false)
     expect(isMassUnit("")).toBe(false)
+  })
+})
+
+describe("volume vs mass units", () => {
+  it("bbl is a volume unit, not a mass unit", () => {
+    expect(isVolumeUnit("bbl")).toBe(true)
+    expect(isMassUnit("bbl")).toBe(false)
+  })
+
+  it("isMarketUnit accepts both mass and volume, rejects unknown", () => {
+    expect(isMarketUnit("t")).toBe(true)
+    expect(isMarketUnit("oz")).toBe(true)
+    expect(isMarketUnit("bbl")).toBe(true)
+    expect(isMarketUnit("barrel")).toBe(false)
+    expect(isMarketUnit("")).toBe(false)
+  })
+
+  it("bbl can NEVER pass through mass conversion (explicit refusal)", () => {
+    expect(convertMassPrice(109.51, "bbl", "t")).toBeNull()
+    expect(convertMassPrice(109.51, "t", "bbl")).toBeNull()
+    expect(convertMassPrice(109.51, "bbl", "bbl")).toBeNull() // bbl not in mass table
   })
 })

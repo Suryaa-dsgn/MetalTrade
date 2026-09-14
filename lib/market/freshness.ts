@@ -34,6 +34,12 @@ export const FRESHNESS_PRESETS = {
     delayMs: 15 * MINUTE,
   } satisfies FreshnessPolicy,
   endOfDay: { mode: "eod", staleAfterMs: 36 * HOUR } satisfies FreshnessPolicy,
+  // Daily official series (e.g. EIA Brent) that legitimately publishes a few days
+  // behind — reads as a delayed daily benchmark, not stale, over normal lag.
+  dailyBenchmark: {
+    mode: "delayed",
+    staleAfterMs: 14 * DAY,
+  } satisfies FreshnessPolicy,
 } as const
 
 /**

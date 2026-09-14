@@ -15,11 +15,40 @@ vi.mock("@/lib/market/providers/metalpriceapi", () => ({
     getLatest: vi.fn(),
   },
 }))
+// EIA is mocked too so Crude (live) has a configured provider in tests.
+vi.mock("@/lib/market/providers/eia", () => ({
+  eiaProvider: {
+    id: "eia",
+    sourceType: "live",
+    capabilities: { latest: true, history: false },
+    isConfigured: () => true,
+    getLatest: vi.fn(),
+  },
+}))
 
 import { metalpriceApiProvider } from "@/lib/market/providers/metalpriceapi"
+import { eiaProvider } from "@/lib/market/providers/eia"
 import type { FetchLatestResult } from "@/lib/market/providers/types"
 
 const getLatest = metalpriceApiProvider.getLatest as unknown as ReturnType<typeof vi.fn>
+const eiaGetLatest = eiaProvider.getLatest as unknown as ReturnType<typeof vi.fn>
+
+function brentResult(value = 109.51): FetchLatestResult {
+  return {
+    quotes: {
+      "brent-crude": {
+        benchmarkId: "brent-crude",
+        providerSymbol: "RBRTE",
+        value,
+        providerUnit: "bbl",
+        sourceTimestamp: "2026-09-09T00:00:00.000Z",
+      },
+    },
+    retrievedAt: "2026-09-15T10:00:00.000Z",
+  }
+}
+// Default: Brent resolves for every test unless a test overrides it.
+eiaGetLatest.mockResolvedValue(brentResult())
 
 function goldResult(value = 4348.21): FetchLatestResult {
   return {
@@ -79,6 +108,16 @@ describe("market service (registry-driven mixed source)", () => {
 
     expect(data.find((r) => r.slug === "lithium")!.source).toBe("sample")
     expect(data.find((r) => r.slug === "manganese")!.source).toBe("unavailable")
+
+    // Brent Crude live via EIA — publicly displayed, USD per barrel.
+    const crude = data.find((r) => r.slug === "crude-oil")!
+    expect(crude.source).toBe("live")
+    expect(crude.price).toBeCloseTo(109.51, 2)
+    expect(crude.unit).toBe("bbl")
+    expect(crude.updatedAt).toBe("2026-09-09T00:00:00.000Z")
+
+    // meta.sources carries the EIA attribution for the live Brent value.
+    expect(meta.sources?.some((s) => s.label.includes("Energy Information"))).toBe(true)
 
     expect(meta.degraded).toBe(false)
     expect(meta.source).toBe("live")

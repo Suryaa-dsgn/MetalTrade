@@ -9,19 +9,17 @@ describe("provider router", () => {
     expect(getProvider("mock")?.sourceType).toBe("sample")
   })
 
-  it("resolves the integrated Metals.Dev provider", () => {
+  it("resolves the integrated Metals.Dev and EIA providers", () => {
     expect(getProvider("metalsdev")?.id).toBe("metalsdev")
     expect(getProvider("metalsdev")?.sourceType).toBe("live")
-  })
-
-  it("returns null for not-yet-integrated providers (fails safe)", () => {
-    expect(getProvider("eia")).toBeNull()
+    expect(getProvider("eia")?.id).toBe("eia")
+    expect(getProvider("eia")?.sourceType).toBe("live")
   })
 
   it("reports implementation status", () => {
     expect(isProviderImplemented("metalpriceapi")).toBe(true)
     expect(isProviderImplemented("metalsdev")).toBe(true)
+    expect(isProviderImplemented("eia")).toBe(true)
     expect(isProviderImplemented("mock")).toBe(true)
-    expect(isProviderImplemented("eia")).toBe(false)
   })
 })
