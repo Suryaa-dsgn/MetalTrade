@@ -126,6 +126,10 @@ export const SAMPLE_ATTRIBUTION: Attribution = {
   disclaimer: "Development sample, not a live market feed.",
 }
 
+export const UNAVAILABLE_ATTRIBUTION: Attribution = {
+  label: "Market profile in preparation",
+}
+
 /*
   The registry for all 12 confirmed catalogue commodities. Keyed by catalogue
   slug (see data/mock/metals.ts). Only Gold is live on the Free tier; Copper and
