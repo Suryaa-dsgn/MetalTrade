@@ -11,8 +11,8 @@ import { serverConfig } from "@/lib/config/env"
 /*
   Content source seam (Phase 10, amendment 6). Owns CATALOGUE and EDITORIAL
   content — the metals catalogue and per-metal detail copy — and is kept strictly
-  separate from `MarketProvider`, which owns quotes/history. A higher-level market
-  service composes the two; this module never touches market data.
+  separate from the benchmark providers, which own quotes/history. A higher-level
+  market service composes the two; this module never touches market data.
 
   The default `staticContentSource` is backed by the existing in-repo fixtures.
   Swapping in a CMS later means adding a source here and selecting it via

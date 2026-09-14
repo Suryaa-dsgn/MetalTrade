@@ -6,55 +6,53 @@ import { FRESHNESS_PRESETS, MOCK_FRESHNESS_POLICY } from "@/lib/market/freshness
   ============================================================================
   BENCHMARK REGISTRY — the single source of truth for how each catalogue
   commodity is sourced, mapped, unit-normalised, and attributed. Provider
-  mapping lives HERE, never in pages/components, so adding or upgrading a
-  provider is a registry change, not a UI change.
+  mapping lives HERE, never in pages/components or provider adapters, so adding
+  or upgrading a provider is a registry change, not a UI change.
+
+  Commodity identity (slug) and benchmark identity (benchmarkId) are SEPARATE:
+  "Copper Cathode" (a commodity) is priced against "LME Copper 3M" (a benchmark).
   ============================================================================
 
-  VERIFIED PROVIDER CONTRACT (MetalpriceAPI, probed 2026-09-14, Free tier)
-  ------------------------------------------------------------------------
-  - Auth: `X-API-KEY` header (also accepts `?api_key=`). We use the header so the
-    key never appears in a URL or log.
-  - `GET /v1/latest?base=USD&currencies=XAU,...` returns `rates` with BOTH
-    `XAU` (metal per USD) and `USDXAU` (USD per unit). We read `USD<symbol>` as
-    the price in USD per the provider's native unit.
-  - `timestamp` (UNIX seconds) is the provider as-of time. A live Gold probe
-    returned 2026-09-13T23:59:59Z → an END-OF-DAY feed on the Free tier.
-  - Units: precious metals are per TROY OUNCE (verified: XAU ≈ $4,348/oz, which
-    matches spot). Our `units.ts` "oz" is the troy ounce (31.1034768 g), so Gold
-    needs NO conversion.
+  COMMERCIAL / LICENSING is deliberately NOT in this file. Vendor plan, pricing,
+  redistribution terms, and attribution wording live in
+  docs/market-provider-readiness.md and are reviewed whenever terms change. The
+  only runtime commercial gate here is `publicDisplayApproved`.
 
-  PLAN LIMITATIONS ON THE FREE TIER (probed, real API errors — NOT provider
-  "does not support"; these unlock on a paid plan):
-  - Base-metal quotes are paid-gated: `XCU query requires a paid plan` (416).
-    Same for XSN/XPB/XLI/IRON. So Copper/Tin/Lead/Lithium/Iron-Ore CANNOT be
-    fetched live yet; they stay on sample / in-preparation.
-  - Timeframe history > 5 days is paid-gated (421). Single-date history works but
-    would exhaust the 100 calls/month quota to build a chart. So live history is
-    effectively unavailable on Free.
-  - The `unit` override (troy_oz/gram/kilogram) is paid-only — no per-tonne unit
-    from the API; base-metal per-ounce → per-tonne conversion is done locally via
-    `convertMassPrice` once a paid plan lets us verify the returned magnitude.
-
-  BASE-METAL UNIT NOTE (for the paid-tier upgrade): MetalpriceAPI's symbol list
-  labels base metals as "Ounce" (docs are inconsistent about troy vs
-  avoirdupois). Do NOT assume. When the paid tier is enabled, run the probe,
-  confirm the returned magnitude against `sanityBand` below under BOTH ounce
-  bases, set `providerUnit` to the confirmed unit, flip `unitVerified` to true,
-  and normalise to `canonicalUnit` ("t") via the centralised `convertMassPrice`.
+  VERIFIED PROVIDER CONTRACTS
+  - MetalpriceAPI (probed 2026-09-14, Free tier): header auth; /latest returns
+    `rates["USD"+symbol]` = USD per native unit; `timestamp` (UNIX) is the as-of
+    time; Gold verified at ~$4,348/troy oz (EOD). Base metals + timeframe history
+    are PAID-GATED (real 416/421 errors — a plan limit, not "unsupported").
+  - Metals.Dev, EIA: NOT yet integrated. Copper/Lead/Zinc are ASSIGNED to
+    Metals.Dev and Brent Crude to EIA, but stay non-live until each provider is
+    researched, its symbols/units/magnitudes verified, and enabled.
 */
 
-export type ProviderId = "metalpriceapi"
+export type ProviderId = "metalpriceapi" | "metalsdev" | "eia" | "mock"
 
 /** How a commodity is sourced RIGHT NOW. */
 export type BenchmarkRouting = "live" | "sample" | "none"
 
-/** Why a commodity has no live benchmark (for internal docs/observability). */
+/** Semantic quality of the mapping — a matching symbol is NOT enough to go live. */
+export type BenchmarkClassification =
+  | "exact" // the instrument is the intended benchmark
+  | "acceptable-proxy" // a reasonable stand-in, allowed with review
+  | "rejected-proxy" // superficially similar but semantically wrong — never live
+  | "unavailable" // no suitable public benchmark
+
+/** Per-benchmark fallback when fresh real data is unavailable. */
+export type FallbackPolicy =
+  | "live-then-lastgood" // fresh → cached → last-known-good (stale) → unavailable
+  | "sample-allowed-dev" // may show labelled sample data in dev/demo, else unavailable
+  | "unavailable" // no data → unavailable, never sample
+
+/** Why a commodity has no live benchmark (internal docs/observability). */
 export type UnavailableReason =
-  | "paid-gated" // provider supports it, current plan does not
-  | "no-symbol" // provider has no instrument for it
-  | "proxy-only" // only a single-element/proxy instrument exists (not the basket)
-  | "energy-decision-pending" // energy benchmark exists (WTI/BRENT) but choice unconfirmed
-  | "structural-lead-zinc" // two separate benchmarks; must not collapse to one number
+  | "paid-gated"
+  | "no-symbol"
+  | "proxy-only"
+  | "provider-not-integrated"
+  | "structural-lead-zinc"
 
 export type Attribution = {
   label: string
@@ -63,15 +61,26 @@ export type Attribution = {
 }
 
 export type BenchmarkConfig = {
+  /** Commodity identity. */
   slug: string
+  /** Benchmark identity — stable, unique, provider-independent. */
+  benchmarkId: string
+  displayName: string
   routing: BenchmarkRouting
-  /** Live provider (only when routing === "live"). */
+  classification: BenchmarkClassification
+  fallbackPolicy: FallbackPolicy
+  /** Whether the value may be shown publicly (commercial/licensing gate, kept
+   *  simple; detail lives in the readiness doc). */
+  publicDisplayApproved: boolean
+  /** Quote provider (meaningful when routing === "live"; also records the planned
+   *  provider for a not-yet-integrated benchmark). */
   provider?: ProviderId
-  /** Provider instrument code, e.g. "XAU". Recorded even when paid-gated so the
-   *  upgrade path is a config flip, not new code. */
+  /** Provider instrument code, set only when verified for the active provider. */
   providerSymbol?: string
-  benchmarkName?: string
-  /** Unit the provider value is denominated in. */
+  /** Optional distinct history provider (only when semantics are compatible). */
+  historyProvider?: ProviderId
+  historySymbol?: string
+  /** Unit the provider value is denominated in (set when verified). */
   providerUnit?: MassUnit
   /** Unit we display/store canonically. */
   canonicalUnit: MassUnit
@@ -80,9 +89,8 @@ export type BenchmarkConfig = {
   historyCapable: boolean
   /** True only after a live probe confirmed the provider unit AND magnitude. */
   unitVerified: boolean
-  /** Plausible [min, max] in CANONICAL unit. A converted value outside this band
-   *  is refused (rendered unavailable) rather than published — a guard against a
-   *  troy/avoirdupois or scale mistake ever showing a wildly wrong public price. */
+  /** Plausible [min, max] in CANONICAL unit; a converted value outside it is
+   *  refused (rendered unavailable) rather than published. */
   sanityBand?: readonly [number, number]
   unavailableReason?: UnavailableReason
   attribution: Attribution
@@ -99,9 +107,8 @@ export type ProviderCapabilities = {
   }
 }
 
-/** Live capability snapshot for the CURRENTLY configured plan. Flip these after
- *  a plan upgrade + re-verification (see docs/market-provider-readiness.md). */
-export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
+/** Capability snapshot for the CURRENTLY configured plan. */
+export const PROVIDER_CAPABILITIES: Record<string, ProviderCapabilities> = {
   metalpriceapi: {
     provider: "metalpriceapi",
     plan: "free",
@@ -117,80 +124,87 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
 export const METALPRICEAPI_ATTRIBUTION: Attribution = {
   label: "Market benchmark via MetalpriceAPI",
   url: "https://metalpriceapi.com",
-  disclaimer:
-    "Reference benchmark, delayed / end-of-day. Not a transaction price.",
+  disclaimer: "Reference benchmark, delayed / end of day. Not a transaction price.",
 }
-
 export const SAMPLE_ATTRIBUTION: Attribution = {
   label: "Indicative sample data",
   disclaimer: "Development sample, not a live market feed.",
 }
-
 export const UNAVAILABLE_ATTRIBUTION: Attribution = {
   label: "Market profile in preparation",
 }
 
 /*
-  The registry for all 12 confirmed catalogue commodities. Keyed by catalogue
-  slug (see data/mock/metals.ts). Only Gold is live on the Free tier; Copper and
-  Lithium keep their existing labelled sample data; the rest have no live
-  benchmark and remain "in preparation".
+  Registry for all 12 confirmed catalogue commodities, keyed by slug. Only Gold
+  is live (MetalpriceAPI Free). Copper and Lithium keep labelled sample data;
+  Copper is assigned to Metals.Dev and Brent to EIA but stay non-live until
+  verified. The rest have no live benchmark and remain "in preparation".
 */
 export const BENCHMARKS: Record<string, BenchmarkConfig> = {
-  // --- LIVE (Free tier verified) ---------------------------------------------
   gold: {
     slug: "gold",
+    benchmarkId: "gold-spot",
+    displayName: "Gold benchmark (USD/oz)",
     routing: "live",
+    classification: "exact",
+    fallbackPolicy: "live-then-lastgood",
+    publicDisplayApproved: true,
     provider: "metalpriceapi",
     providerSymbol: "XAU",
-    benchmarkName: "Gold benchmark (USD/oz)",
     providerUnit: "oz", // troy ounce — verified
     canonicalUnit: "oz",
     currency: "USD",
     freshnessPolicy: FRESHNESS_PRESETS.endOfDay,
     historyCapable: false, // paid-gated on Free
     unitVerified: true, // verified live: USDXAU ≈ 4348/oz
-    sanityBand: [500, 20000], // USD per troy oz, wide plausibility
+    sanityBand: [500, 20000],
     attribution: METALPRICEAPI_ATTRIBUTION,
   },
 
-  // --- SAMPLE (kept until paid access enables + verifies the live benchmark) --
   copper: {
     slug: "copper",
-    routing: "sample",
-    provider: "metalpriceapi",
-    providerSymbol: "XCU",
-    benchmarkName: "Copper benchmark (USD/t)",
-    canonicalUnit: "t", // display per metric tonne (LME convention)
+    benchmarkId: "copper-lme-3m",
+    displayName: "LME Copper 3M",
+    routing: "sample", // → "live" once Metals.Dev is integrated + verified
+    classification: "exact",
+    fallbackPolicy: "sample-allowed-dev",
+    publicDisplayApproved: false,
+    provider: "metalsdev", // planned
+    canonicalUnit: "MT", // metric tonne; matches the sample fixture's display label
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
     historyCapable: true, // sample history exists (data/mock)
-    unitVerified: false, // provider "ounce" basis unconfirmed until paid probe
-    sanityBand: [7000, 13000], // USD/t
-    unavailableReason: "paid-gated",
+    unitVerified: false,
+    sanityBand: [7000, 13000],
+    unavailableReason: "provider-not-integrated",
     attribution: SAMPLE_ATTRIBUTION,
   },
   lithium: {
     slug: "lithium",
+    benchmarkId: "lithium-proxy",
+    displayName: "Lithium benchmark",
     routing: "sample",
-    provider: "metalpriceapi",
-    providerSymbol: "XLI",
-    benchmarkName: "Lithium benchmark",
-    canonicalUnit: "t",
+    classification: "acceptable-proxy", // XLI needs semantic verification before live
+    fallbackPolicy: "sample-allowed-dev",
+    publicDisplayApproved: false,
+    provider: "metalpriceapi", // planned, paid + semantic review
+    canonicalUnit: "MT", // metric tonne; matches the sample fixture's display label
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
     historyCapable: true,
     unitVerified: false,
-    // XLI also needs SEMANTIC review (what physical lithium product it tracks)
-    // before it is exposed, even once the paid tier returns a number.
     unavailableReason: "paid-gated",
     attribution: SAMPLE_ATTRIBUTION,
   },
 
-  // --- NONE (no live benchmark; "in preparation") ----------------------------
   tin: {
     slug: "tin",
+    benchmarkId: "tin-metalprice",
+    displayName: "Tin benchmark",
     routing: "none",
+    classification: "exact",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     provider: "metalpriceapi",
     providerSymbol: "XSN",
     canonicalUnit: "t",
@@ -204,10 +218,14 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   "lead-zinc": {
     slug: "lead-zinc",
+    benchmarkId: "lead-zinc-combined",
+    displayName: "Lead-Zinc",
     routing: "none",
-    // Lead (XPB) and Zinc (ZNC) are SEPARATE benchmarks. Must not be combined
-    // into one number. If exposed later, represent as two distinct reference
-    // benchmarks, not one blended price.
+    // Lead (metalsdev) and Zinc (metalsdev) are SEPARATE exact benchmarks; the
+    // combined catalogue slug must never become one blended number.
+    classification: "unavailable",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -218,7 +236,12 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   manganese: {
     slug: "manganese",
+    benchmarkId: "manganese",
+    displayName: "Manganese",
     routing: "none",
+    classification: "unavailable",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -229,7 +252,12 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   "iron-ore": {
     slug: "iron-ore",
+    benchmarkId: "iron-ore-proxy",
+    displayName: "Iron Ore",
     routing: "none",
+    classification: "rejected-proxy", // "IRON" per-ounce ≠ per-dmt bulk benchmark
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     provider: "metalpriceapi",
     providerSymbol: "IRON",
     canonicalUnit: "t",
@@ -237,14 +265,17 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
     historyCapable: false,
     unitVerified: false,
-    // "IRON" is quoted per ounce — a weak proxy for a bulk per-dmt commodity.
-    // Needs an explicit semantic decision before exposure, not just a paid plan.
     unavailableReason: "proxy-only",
     attribution: SAMPLE_ATTRIBUTION,
   },
   coltan: {
     slug: "coltan",
+    benchmarkId: "coltan",
+    displayName: "Columbite-Tantalite (Coltan)",
     routing: "none",
+    classification: "unavailable",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -255,9 +286,14 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   "rare-earth-elements": {
     slug: "rare-earth-elements",
+    benchmarkId: "ree-nd-proxy",
+    displayName: "Rare Earth Elements",
     routing: "none",
+    classification: "rejected-proxy", // XND (Neodymium) ≠ the REE basket
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     provider: "metalpriceapi",
-    providerSymbol: "XND", // Neodymium — a single element, NOT the REE basket
+    providerSymbol: "XND",
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -268,7 +304,12 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   barite: {
     slug: "barite",
+    benchmarkId: "barite",
+    displayName: "Barite",
     routing: "none",
+    classification: "unavailable",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -279,7 +320,12 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   bitumen: {
     slug: "bitumen",
+    benchmarkId: "bitumen",
+    displayName: "Bitumen",
     routing: "none",
+    classification: "unavailable",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
@@ -290,16 +336,21 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   },
   "crude-oil": {
     slug: "crude-oil",
-    routing: "none",
-    // WTI/BRENT exist under the provider's energy set (per barrel), but choosing
-    // and labelling a specific crude benchmark is a product decision, and the
-    // unit is volume (barrel), not mass — out of scope for this mass-metal pass.
+    benchmarkId: "brent-crude",
+    displayName: "Brent Crude", // named explicitly; never generic "Crude Oil price"
+    routing: "none", // → "live" once EIA is integrated (after Metals.Dev)
+    classification: "exact",
+    fallbackPolicy: "unavailable",
+    publicDisplayApproved: false,
+    provider: "eia", // planned
+    // Crude is priced per barrel (volume), not mass — the mass-unit conversion
+    // path does not apply; EIA integration handles its own unit.
     canonicalUnit: "t",
     currency: "USD",
     freshnessPolicy: MOCK_FRESHNESS_POLICY,
     historyCapable: false,
     unitVerified: false,
-    unavailableReason: "energy-decision-pending",
+    unavailableReason: "provider-not-integrated",
     attribution: SAMPLE_ATTRIBUTION,
   },
 }

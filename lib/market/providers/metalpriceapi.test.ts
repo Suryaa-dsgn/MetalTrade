@@ -30,43 +30,48 @@ const GOLD_LATEST = {
   rates: { USDXAU: 4348.2098637401, XAU: 0.0002299797 },
 }
 
+const XAU = { benchmarkId: "gold-spot", providerSymbol: "XAU" }
+const XCU = { benchmarkId: "copper-lme-3m", providerSymbol: "XCU" }
+
 async function importAdapter() {
   return (await import("@/lib/market/providers/metalpriceapi")).metalpriceApiProvider
 }
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
+afterEach(() => vi.unstubAllGlobals())
 
-describe("metalpriceApiProvider.fetchQuotes", () => {
-  it("parses a live latest payload, extracts timestamp, keeps the key out of the URL", async () => {
+describe("metalpriceApiProvider.getLatest", () => {
+  it("is configured when the key is set", async () => {
+    const provider = await importAdapter()
+    expect(provider.isConfigured()).toBe(true)
+    expect(provider.sourceType).toBe("live")
+    expect(provider.capabilities).toEqual({ latest: true, history: false })
+  })
+
+  it("parses a live payload, keys by benchmarkId, keeps the key out of the URL", async () => {
     const fetchMock = vi.fn(async () =>
-      fakeResponse({
-        json: GOLD_LATEST,
-        headers: { "x-api-quota": "100", "x-api-current": "5" },
-      })
+      fakeResponse({ json: GOLD_LATEST, headers: { "x-api-quota": "100", "x-api-current": "5" } })
     )
     vi.stubGlobal("fetch", fetchMock)
 
     const provider = await importAdapter()
-    const res = await provider.fetchQuotes(["XAU"])
+    const res = await provider.getLatest([XAU])
 
-    expect(res.quotes.XAU.value).toBeCloseTo(4348.2098637401)
-    expect(res.quotes.XAU.providerUnit).toBe("oz")
-    expect(res.quotes.XAU.sourceTimestamp).toBe("2026-09-13T23:59:59.000Z")
+    expect(res.quotes["gold-spot"].value).toBeCloseTo(4348.2098637401)
+    expect(res.quotes["gold-spot"].providerUnit).toBe("oz")
+    expect(res.quotes["gold-spot"].sourceTimestamp).toBe("2026-09-13T23:59:59.000Z")
     expect(res.quota).toEqual({ limit: 100, used: 5 })
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, FakeInit]
     expect(url).toContain("/latest?base=USD&currencies=XAU")
-    expect(url).not.toContain(KEY) // key never in the URL
-    expect(init.headers["X-API-KEY"]).toBe(KEY) // header auth
+    expect(url).not.toContain(KEY)
+    expect(init.headers["X-API-KEY"]).toBe(KEY)
   })
 
-  it("short-circuits with no network call for an empty symbol list", async () => {
+  it("short-circuits with no network call for an empty request list", async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
     const provider = await importAdapter()
-    const res = await provider.fetchQuotes([])
+    const res = await provider.getLatest([])
     expect(res.quotes).toEqual({})
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -76,45 +81,42 @@ describe("metalpriceApiProvider.fetchQuotes", () => {
       "fetch",
       vi.fn(async () =>
         fakeResponse({
-          json: {
-            success: false,
-            error: { statusCode: 416, message: "XCU query requires a paid plan." },
-          },
+          json: { success: false, error: { statusCode: 416, message: "XCU query requires a paid plan." } },
         })
       )
     )
     const provider = await importAdapter()
-    await expect(provider.fetchQuotes(["XCU"])).rejects.toMatchObject({
-      code: "paid_gated",
-    })
-    await expect(provider.fetchQuotes(["XCU"])).rejects.toBeInstanceOf(ProviderError)
+    await expect(provider.getLatest([XCU])).rejects.toMatchObject({ code: "paid_gated" })
+    await expect(provider.getLatest([XCU])).rejects.toBeInstanceOf(ProviderError)
   })
 
   it("maps an invalid-key response to an auth error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        fakeResponse({
-          json: { success: false, error: { statusCode: 101, message: "no key" } },
-        })
-      )
+      vi.fn(async () => fakeResponse({ json: { success: false, error: { statusCode: 101 } } }))
     )
     const provider = await importAdapter()
-    await expect(provider.fetchQuotes(["XAU"])).rejects.toMatchObject({ code: "auth" })
+    await expect(provider.getLatest([XAU])).rejects.toMatchObject({ code: "auth" })
   })
 
-  it("omits a symbol the provider did not return (no fabrication)", async () => {
+  it("omits a benchmark the provider did not return (partial, no fabrication)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => fakeResponse({ json: GOLD_LATEST })))
+    const provider = await importAdapter()
+    const res = await provider.getLatest([XAU, XCU])
+    expect(res.quotes["gold-spot"]).toBeDefined()
+    expect(res.quotes["copper-lme-3m"]).toBeUndefined()
+  })
+
+  it("rejects a schema-invalid body (Zod) as malformed", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => fakeResponse({ json: GOLD_LATEST }))
+      vi.fn(async () => fakeResponse({ json: { success: true, rates: { USDXAU: "not-a-number" } } }))
     )
     const provider = await importAdapter()
-    const res = await provider.fetchQuotes(["XAU", "XCU"])
-    expect(res.quotes.XAU).toBeDefined()
-    expect(res.quotes.XCU).toBeUndefined()
+    await expect(provider.getLatest([XAU])).rejects.toMatchObject({ code: "malformed" })
   })
 
-  it("treats an unparseable body as a malformed error", async () => {
+  it("treats an unparseable body as malformed", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -127,9 +129,7 @@ describe("metalpriceApiProvider.fetchQuotes", () => {
       }))
     )
     const provider = await importAdapter()
-    await expect(provider.fetchQuotes(["XAU"])).rejects.toMatchObject({
-      code: "malformed",
-    })
+    await expect(provider.getLatest([XAU])).rejects.toMatchObject({ code: "malformed" })
   })
 
   it("maps an aborted request to a timeout error", async () => {
@@ -142,9 +142,7 @@ describe("metalpriceApiProvider.fetchQuotes", () => {
       })
     )
     const provider = await importAdapter()
-    await expect(provider.fetchQuotes(["XAU"])).rejects.toMatchObject({
-      code: "timeout",
-    })
+    await expect(provider.getLatest([XAU])).rejects.toMatchObject({ code: "timeout" })
   })
 
   it("maps a transport failure to a network error", async () => {
@@ -155,8 +153,6 @@ describe("metalpriceApiProvider.fetchQuotes", () => {
       })
     )
     const provider = await importAdapter()
-    await expect(provider.fetchQuotes(["XAU"])).rejects.toMatchObject({
-      code: "network",
-    })
+    await expect(provider.getLatest([XAU])).rejects.toMatchObject({ code: "network" })
   })
 })

@@ -1,38 +1,64 @@
-import type { MarketProvider } from "@/lib/market/provider"
-import { MOCK_FRESHNESS_POLICY } from "@/lib/market/freshness"
-import {
-  marketExtended,
-  marketPressureRows,
-  marketQuotes,
-} from "@/data/mock/market"
+import type {
+  BenchmarkProvider,
+  FetchLatestResult,
+  ProviderBenchmarkRequest,
+  RawQuote,
+} from "@/lib/market/providers/types"
+import type { ChartRange, HistoryPoint } from "@/lib/market/types"
+import { marketExtended, marketQuotes } from "@/data/mock/market"
 import { buildHistorySet } from "@/lib/market/history"
 
 /*
-  Mock market provider (Phase 10). Serves the in-repo sample fixtures behind the
-  `MarketProvider` interface — quotes and history only, no catalogue/editorial.
-  `source: "mock"` propagates into read metadata so every surface can keep
-  labelling values as indicative sample data, never live (amendment 13).
+  Sample provider. Implements the same `BenchmarkProvider` contract as the live
+  providers, but `sourceType: "sample"` so its values are always labelled
+  indicative sample data, never live. Serves the in-repo fixtures keyed by the
+  provider symbol on each request (the mock's own symbols: Cu / Au / Li).
 
-  Async even though the fixtures are local, so the shape matches a real feed.
+  Sample-only extras (7d/30d change, chart history) are exported separately —
+  they are not part of the provider contract, only used by the service to
+  preserve the current sample table + Copper chart experience.
 */
-export const mockMarketProvider: MarketProvider = {
-  name: "mock",
-  source: "mock",
-  freshnessPolicy: MOCK_FRESHNESS_POLICY,
+export const mockBenchmarkProvider: BenchmarkProvider = {
+  id: "mock",
+  sourceType: "sample",
+  capabilities: { latest: true, history: true },
+  isConfigured: () => true,
 
-  async getQuotes() {
-    return marketQuotes
+  async getLatest(
+    requests: ProviderBenchmarkRequest[]
+  ): Promise<FetchLatestResult> {
+    const retrievedAt = new Date().toISOString()
+    const quotes: Record<string, RawQuote> = {}
+    for (const req of requests) {
+      const q = marketQuotes[req.providerSymbol]
+      if (!q || q.price == null) continue // missing → omitted (partial), never faked
+      quotes[req.benchmarkId] = {
+        benchmarkId: req.benchmarkId,
+        providerSymbol: req.providerSymbol,
+        value: q.price,
+        providerUnit: q.unit,
+        sourceTimestamp: q.updatedAt,
+      }
+    }
+    return { quotes, retrievedAt }
   },
+}
 
-  async getExtendedChanges() {
-    return marketExtended
-  },
+export type SampleExtendedChange = {
+  change7d: number | null
+  change30d: number | null
+}
 
-  async getPressureRows() {
-    return marketPressureRows
-  },
+/** Sample 7d/30d change, keyed by mock symbol (Cu/Au/Li). */
+export function getSampleExtendedChanges(): Record<string, SampleExtendedChange> {
+  return marketExtended
+}
 
-  async getHistorySet(slug, ranges, anchorPrice) {
-    return buildHistorySet(slug, ranges, anchorPrice)
-  },
+/** Deterministic sample history for a slug, anchored to a price. */
+export function getSampleHistory(
+  slug: string,
+  ranges: ChartRange[],
+  anchorPrice: number
+): Partial<Record<ChartRange, HistoryPoint[]>> {
+  return buildHistorySet(slug, ranges, anchorPrice)
 }
