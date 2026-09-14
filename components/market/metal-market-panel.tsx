@@ -115,7 +115,7 @@ export function MetalMarketPanel({
       <div>
         <div className="flex flex-wrap items-center gap-3">
           <Label>Market benchmark</Label>
-          <MarketStatus status={quote.status} />
+          <MarketStatus status={quote.status} source={quote.source} />
         </div>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <PriceXL className="text-foreground">

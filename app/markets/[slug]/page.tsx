@@ -31,11 +31,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const { data: metal } = await getMetalBySlug(slug)
+  // Content-only (catalogue) read: metadata must not depend on a market-provider
+  // fetch, and stays provider-neutral (no live/sample claim). Source and
+  // freshness detail live in the visible UI.
+  const metal = await getContentSource().getMetalBySlug(slug)
   if (!metal) return { title: "Metal" }
   return {
     title: metal.name,
-    description: `Indicative ${metal.name} market benchmark, historical movement, and physical trade context. Development sample data. Not a live feed.`,
+    description: `Reference ${metal.name} market benchmark and physical trade context for qualified buyers and suppliers.`,
   }
 }
 
@@ -93,7 +96,7 @@ export default async function MetalDetailPage({
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <Label>Market benchmark</Label>
-          <MarketStatus status={q.status} />
+          <MarketStatus status={q.status} source={q.source} />
         </div>
         <div className="mt-2 flex flex-wrap items-baseline gap-3">
           <span className="text-price-l tabular-nums tracking-tight text-foreground">
@@ -104,7 +107,12 @@ export default async function MetalDetailPage({
           </span>
           {q.price !== null ? <PriceChange change={q.change24h} /> : null}
           <span className="text-label uppercase tracking-label text-muted-foreground">
-            Indicative sample · updated {formatUpdatedAtUTC(q.updatedAt)}
+            {q.source === "live"
+              ? "Reference benchmark"
+              : q.source === "sample"
+                ? "Indicative sample"
+                : "In preparation"}{" "}
+            · updated {formatUpdatedAtUTC(q.updatedAt)}
           </span>
         </div>
 

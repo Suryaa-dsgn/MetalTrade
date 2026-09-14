@@ -1,0 +1,93 @@
+# Market Provider Readiness — MetalpriceAPI
+
+Operational record for the live market-data integration. Verified against real
+API responses on 2026-09-14. Update this file whenever the plan or verified
+capabilities change.
+
+## Current state
+
+- **Provider:** MetalpriceAPI (`lib/market/providers/metalpriceapi.ts`).
+- **Plan:** **Free.**
+- **Active source:** mixed. Gold is a live benchmark; Copper and Lithium keep
+  labelled sample data; the other nine commodities have no live benchmark
+  ("in preparation"). Routing lives in `lib/market/benchmarks.ts`.
+- **Activation:** `MARKET_PROVIDER=metalpriceapi` + `METALPRICE_API_KEY` set (in
+  an untracked `.env.local`). With `MARKET_PROVIDER=mock` or no key, live-routed
+  commodities fall back to labelled sample data (dev) or render unavailable
+  (production) — never mock-presented-as-live.
+
+## Verified working (Free tier)
+
+| Capability | Status | Notes |
+|---|---|---|
+| Header auth (`X-API-KEY`) | ✅ | Key never in URL or logs. |
+| `/latest` quotes | ✅ | `rates["USD"+symbol]` = USD per native unit. |
+| Gold (`XAU`) | ✅ live | $4,348.21 / **troy ounce**, USD. Unit verified. |
+| Source timestamp | ✅ | `timestamp` (UNIX) → as-of; EOD (23:59:59Z). |
+| Retrieval timestamp | ✅ | Set by the adapter at fetch time. |
+| Quota headers | ✅ | `x-api-quota` / `x-api-current` logged. **100 calls/month.** |
+| Single-date history (`/YYYY-MM-DD`) | ✅ | Works, but quota-prohibitive for charts. |
+| Error handling | ✅ | Typed codes; HTTP-200-with-`success:false` handled. |
+
+## Paid-gated (NOT provider limitations — unlock on a paid plan)
+
+| Capability | Error | Impact today |
+|---|---|---|
+| Base-metal quotes (`XCU`, `XSN`, `XPB`, `XLI`, `IRON`) | 416 "requires a paid plan" | Copper/Tin/Lead/Lithium/Iron-Ore stay sample / in-preparation. |
+| Timeframe history > 5 days | 421 "requires a paid plan" | No live chart history; Copper chart stays sample. |
+| `unit` override (troy_oz/gram/kilogram) | paid-only | Base-metal per-ounce → per-tonne is converted locally after verification. |
+| Higher quota / lower delay | paid-only | Free = daily/EOD, 100 calls/month. |
+
+**Paid-gated ≠ unsupported.** The instruments exist; the current plan cannot
+fetch them.
+
+## No suitable public benchmark (provider genuinely lacks it)
+
+- **Manganese, Coltan (Ta/Nb), Barite, Bitumen** — no symbol. Stay in-preparation.
+- **REE** — only `XND` (Neodymium), a single element, not the REE basket → proxy only.
+- **Iron Ore** — `IRON` is quoted per ounce, a weak proxy for a per-dmt bulk
+  commodity → needs a semantic decision, not just a paid plan.
+- **Crude Oil** — WTI/BRENT exist (per barrel, volume not mass) → product decision
+  + a non-mass unit path; out of scope for this metals pass.
+- **Lead-Zinc** — `XPB` and `ZNC` are two separate benchmarks and must never be
+  blended into one number; catalogue entry stays combined/in-preparation.
+
+## Production upgrade workflow (no rewrite required)
+
+1. Client upgrades the MetalpriceAPI plan (base metals + timeframe history).
+2. Update `METALPRICE_API_KEY` in the production secret store if the key changes.
+3. Run the live probe (`/latest?currencies=XCU,XSN,XPB,XLI,IRON`) and record the
+   returned magnitudes.
+4. For each base metal: confirm the returned value, under the troy-ounce basis,
+   lands inside the `sanityBand` in `benchmarks.ts`. If it fits, add the symbol to
+   `VERIFIED_UNITS` in the adapter, set `providerUnit`/`unitVerified: true` and
+   `routing: "live"` in the registry. If it does not fit, keep it sample and
+   investigate (troy vs avoirdupois, or a different denomination).
+5. Lithium (`XLI`) needs an extra **semantic** check — confirm which physical
+   lithium product it tracks before exposing it, even if a number returns.
+6. Flip `PROVIDER_CAPABILITIES.metalpriceapi.plan`/capability flags.
+7. For live chart history, implement `fetchHistory` on the provider (timeframe,
+   ≤365-day chunks) and branch history sourcing in `getMetalDetail`.
+8. `npm test`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, then the
+   verification checklist below.
+
+## Post-upgrade verification checklist
+
+- [ ] `/markets` shows each newly-enabled commodity with a plausible price and a
+      **Live benchmark** label (not "Sample").
+- [ ] Units correct: base metals in USD/t within the sanity band; Gold in USD/oz.
+- [ ] Source + retrieved timestamps populated; freshness accurate.
+- [ ] Sanity guard: a deliberately wrong band renders unavailable, not a bad price.
+- [ ] Provider failure path still degrades safely (last-known-good / unavailable).
+- [ ] API key absent from `.next/static` and served HTML.
+- [ ] Quota usage sustainable at the chosen cache interval.
+
+## Known limitations (true, not shortcuts)
+
+- **Free tier caps live data to Gold**; everything else is paid-gated or lacks a
+  public benchmark. Documented above.
+- **Last-known-good is per server instance** (in-memory) and does not survive a
+  cold start; there is no database by design. The adapter's Next `fetch`
+  revalidate (12h) softens this. Durable last-known-good is a future step.
+- **No 24h/7d/30d change for live Gold** on Free (`/latest` omits change; a second
+  call/endpoint would be needed) → shown as an em dash, never fabricated.

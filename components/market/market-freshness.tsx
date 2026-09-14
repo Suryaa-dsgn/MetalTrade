@@ -2,12 +2,14 @@ import { cn } from "@/lib/utils"
 import type { Freshness } from "@/lib/market/types"
 
 /*
-  Feed freshness indicator. `delayed` and `stale` are DISTINCT (amendment 6):
-  delayed = intentionally delayed feed (neutral/info); stale = exceeded the
-  freshness threshold (attention — amber, never alarming red).
+  Feed freshness indicator + source summary. `delayed` and `stale` are DISTINCT
+  (amendment 6): delayed = intentionally delayed/EOD feed (neutral/info); stale =
+  exceeded the freshness threshold (attention — amber, never alarming red).
 
-  A persistent "indicative sample" tag makes clear this is development data and
-  not a live market feed (amendment 11).
+  Source summary is TRUTHFUL for mixed sourcing: the page never claims to be
+  wholly "live" or wholly "sample". It shows a "Live benchmark" pill when any
+  real benchmark is present and an "Indicative sample" pill when any sample data
+  is present; per-row badges carry the specifics.
 */
 const config: Record<Freshness, { label: string; badge: string; dot: string }> = {
   live: {
@@ -16,7 +18,7 @@ const config: Record<Freshness, { label: string; badge: string; dot: string }> =
     dot: "bg-positive",
   },
   delayed: {
-    label: "Delayed feed",
+    label: "Delayed / end of day",
     badge: "bg-info-soft text-info",
     dot: "bg-info",
   },
@@ -30,18 +32,31 @@ const config: Record<Freshness, { label: string; badge: string; dot: string }> =
 export function MarketFreshness({
   freshness,
   updatedLabel,
+  hasLive,
+  hasSample,
   className,
 }: {
   freshness: Freshness
   updatedLabel: string
+  /** True when at least one value on the page is a real provider benchmark. */
+  hasLive: boolean
+  /** True when at least one value on the page is indicative sample data. */
+  hasSample: boolean
   className?: string
 }) {
   const c = config[freshness]
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
-      <span className="inline-flex items-center gap-1.5 rounded-pill bg-warning-soft px-2.5 py-1 text-label uppercase tracking-label text-warning">
-        Indicative sample · not a live feed
-      </span>
+      {hasLive ? (
+        <span className="inline-flex items-center gap-1.5 rounded-pill bg-info-soft px-2.5 py-1 text-label uppercase tracking-label text-info">
+          Live benchmark
+        </span>
+      ) : null}
+      {hasSample ? (
+        <span className="inline-flex items-center gap-1.5 rounded-pill bg-warning-soft px-2.5 py-1 text-label uppercase tracking-label text-warning">
+          Indicative sample
+        </span>
+      ) : null}
       <span
         className={cn(
           "inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-body-s font-medium",
