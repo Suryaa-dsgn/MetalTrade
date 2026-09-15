@@ -2,9 +2,10 @@ import { CheckIconGlyph } from "@/components/ui/icon"
 import { H3 } from "@/components/ui/typography"
 
 /*
-  Contact success state (Contact redesign, Phase 1). Client-facing copy with no
-  invented SLA. A small development-only note (hidden in production) keeps us honest
-  that live lead delivery is not connected yet — the backend is a later phase.
+  Contact success state. Client-facing copy with no invented SLA. A small
+  development-only note (hidden in production) keeps us honest: in this phase leads
+  are captured in memory only — persistent production storage and live delivery
+  (email/CRM) are not connected yet.
 */
 export function ContactSuccess() {
   const isDev = process.env.NODE_ENV !== "production"
@@ -25,7 +26,8 @@ export function ContactSuccess() {
 
       {isDev ? (
         <p className="mt-4 text-body-s text-muted-foreground">
-          Development build: live lead delivery is not connected yet.
+          Development build: leads are captured in memory only — persistent storage
+          and live delivery are not connected yet.
         </p>
       ) : null}
     </div>

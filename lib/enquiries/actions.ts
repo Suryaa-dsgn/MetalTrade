@@ -6,7 +6,6 @@ import {
   enquirySchemas,
   contactEnquirySchema,
   type EnquiryIntent,
-  type ContactEnquiryType,
 } from "@/lib/validation/enquiry"
 import { getEnquirySink } from "@/lib/enquiries/sink"
 import { serverConfig } from "@/lib/config/env"
@@ -15,6 +14,8 @@ import { deriveClientKey } from "@/lib/security/client-identity"
 import { getBotVerifier } from "@/lib/security/bot-verification"
 import { logger } from "@/lib/observability/logger"
 import { newCorrelationId } from "@/lib/observability/correlation"
+import { submitLead } from "@/lib/leads/service"
+import { newSubmissionToken } from "@/lib/leads/reference"
 
 /*
   Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
@@ -123,41 +124,18 @@ export async function submitEnquiry(
 }
 
 /*
-  Unified Contact submission (Contact redesign, Phase 1). Same server-side security
-  as submitEnquiry — rate limit + bot seam + correlation IDs + redacted logging —
-  and the SAME delivery stub (the log sink). NO email/CRM/database is connected;
-  the future backend phase implements the real Lead delivery behind this same
-  action + sink abstraction. `values` carries the full Lead-shaped payload
-  (enquiryType, name, email, phone, company, country, commodity, quantity, origin,
-  destination, message); the log sink records only redacted metadata (no PII).
+  Unified Contact submission (Backend Phase 2A). Same server-side security as
+  submitEnquiry — rate limit + bot seam + correlation IDs + redacted logging — which
+  all run BEFORE the lead pipeline. After validation, the payload is handed to the
+  LeadSubmissionService, which normalizes it, persists the Lead (the success
+  boundary), and notifies via the log provider. Persistence — NOT notification —
+  determines success. Storage is in-memory only in this phase (no database, no
+  email/CRM); the success UI still notes that live delivery / persistent storage is
+  not connected yet.
+
+  The submissionToken is server-generated for now; the Contact form will supply a
+  client token in Phase 2B to make cross-request de-duplication real.
 */
-const CONTACT_PREFIX: Record<ContactEnquiryType, string> = {
-  buy: "BUY",
-  supply: "SUP",
-  logistics: "LOG",
-  general: "GEN",
-  partnership: "PAR",
-}
-
-// The sink's legacy `intent` is 4-valued; map the 5 contact types onto it for the
-// stub's metadata. The authoritative enquiryType stays in the Lead payload.
-const CONTACT_INTENT: Record<ContactEnquiryType, EnquiryIntent> = {
-  buy: "buying",
-  supply: "supply",
-  logistics: "logistics",
-  general: "general",
-  partnership: "general",
-}
-
-function contactReference(type: ContactEnquiryType): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  let code = ""
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return `DEMO-${CONTACT_PREFIX[type]}-${code}`
-}
-
 export async function submitContactEnquiry(values: unknown): Promise<EnquiryResult> {
   const correlationId = newCorrelationId()
 
@@ -171,7 +149,11 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
   )
   const decision = enquiryRateLimiter.check(`contact:${client.key}`)
   if (!decision.allowed) {
-    logger.warn("enquiry.rate_limited", { correlationId, scope: "contact", trusted: client.trusted })
+    logger.warn("lead.submission.rejected", {
+      correlationId,
+      reason: "rate_limit",
+      trusted: client.trusted,
+    })
     return {
       ok: false,
       kind: "submission",
@@ -182,6 +164,7 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
 
   const bot = await getBotVerifier().verify(null)
   if (!bot.ok) {
+    logger.warn("lead.submission.rejected", { correlationId, reason: "bot" })
     return {
       ok: false,
       kind: "submission",
@@ -192,6 +175,7 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
   // Server-side re-validation (authoritative): bounded, strict, conditional.
   const parsed = contactEnquirySchema.safeParse(values)
   if (!parsed.success) {
+    logger.warn("lead.submission.rejected", { correlationId, reason: "validation" })
     const fieldErrors: Record<string, string> = {}
     for (const issue of parsed.error.issues) {
       const key = issue.path[0]
@@ -202,20 +186,15 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
     return { ok: false, kind: "validation", fieldErrors }
   }
 
-  // Exercise the pending UI (no real delivery yet).
-  await new Promise((resolve) => setTimeout(resolve, 700))
-
-  const referenceId = contactReference(parsed.data.enquiryType)
-  const delivery = await getEnquirySink().deliver({
-    intent: CONTACT_INTENT[parsed.data.enquiryType],
-    referenceId,
+  // Persist the lead (system of record). Success is determined here, not by
+  // notification. In-memory only in this phase.
+  const result = await submitLead(parsed.data, {
+    submissionToken: newSubmissionToken(),
     correlationId,
-    values: parsed.data,
-    submittedAt: new Date().toISOString(),
-    hasAttachments: false,
+    source: "contact-form",
   })
 
-  if (!delivery.ok) {
+  if (!result.ok) {
     return {
       ok: false,
       kind: "submission",
@@ -224,5 +203,5 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
     }
   }
 
-  return { ok: true, referenceId }
+  return { ok: true, referenceId: result.lead.reference }
 }
