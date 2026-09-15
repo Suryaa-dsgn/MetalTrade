@@ -4,8 +4,10 @@ import {
   conditionalFieldsFor,
   messageHelperFor,
   enquiryTypeFromParam,
+  commodityFromParam,
 } from "@/lib/enquiries/contact"
 import { CONTACT_ENQUIRY_TYPES } from "@/lib/validation/enquiry"
+import { CATALOGUE_METAL_SLUGS } from "@/data/config/enquiry"
 
 /*
   Contact redesign, Phase 1 — pure form branching. Drives progressive disclosure,
@@ -78,5 +80,26 @@ describe("enquiryTypeFromParam (route preselection allowlist)", () => {
     expect(enquiryTypeFromParam(undefined)).toBeUndefined()
     expect(enquiryTypeFromParam(["buy", "supply"])).toBe("buy") // first, validated
     expect(enquiryTypeFromParam(["nope"])).toBeUndefined()
+  })
+})
+
+describe("commodityFromParam (legacy ?metal= / ?commodity= prefill)", () => {
+  it("accepts every canonical catalogue slug", () => {
+    for (const slug of CATALOGUE_METAL_SLUGS) {
+      expect(commodityFromParam(slug)).toBe(slug)
+    }
+  })
+  it("preserves the prefill used by the old markets links", () => {
+    // markets/[slug] linked /enquire/supply?metal=copper (and buying-requirement)
+    expect(commodityFromParam("copper")).toBe("copper")
+    expect(commodityFromParam("iron-ore")).toBe("iron-ore")
+  })
+  it("fails safely (no preselection) for invalid, non-catalogue, or array values", () => {
+    expect(commodityFromParam("uranium")).toBeUndefined()
+    expect(commodityFromParam("other")).toBeUndefined() // not a catalogue slug
+    expect(commodityFromParam("")).toBeUndefined()
+    expect(commodityFromParam(undefined)).toBeUndefined()
+    expect(commodityFromParam(["copper", "gold"])).toBe("copper") // first, validated
+    expect(commodityFromParam(["nope"])).toBeUndefined()
   })
 })

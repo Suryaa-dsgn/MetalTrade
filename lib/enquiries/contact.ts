@@ -2,6 +2,7 @@ import {
   CONTACT_ENQUIRY_TYPES,
   type ContactEnquiryType,
 } from "@/lib/validation/enquiry"
+import { CATALOGUE_METAL_SLUGS } from "@/data/config/enquiry"
 
 /*
   Pure Contact-form logic (Contact redesign, Phase 1). No `server-only`, no React —
@@ -92,4 +93,14 @@ export function enquiryTypeFromParam(
   return value && (CONTACT_ENQUIRY_TYPES as readonly string[]).includes(value)
     ? (value as ContactEnquiryType)
     : undefined
+}
+
+/** Validate a commodity prefill (legacy `?metal=` or new `?commodity=`) against the
+ *  canonical 12-commodity catalogue (CATALOGUE_METAL_SLUGS — no duplicate list).
+ *  Returns a valid catalogue slug or `undefined` (invalid → no preselection). */
+export function commodityFromParam(
+  param: string | string[] | undefined
+): string | undefined {
+  const value = Array.isArray(param) ? param[0] : param
+  return value && CATALOGUE_METAL_SLUGS.includes(value) ? value : undefined
 }

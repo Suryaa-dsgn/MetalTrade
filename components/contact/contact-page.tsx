@@ -10,8 +10,10 @@ import type { ContactEnquiryType } from "@/lib/validation/enquiry"
 */
 export function ContactPage({
   preselectType = "",
+  preselectCommodity = "",
 }: {
   preselectType?: ContactEnquiryType | ""
+  preselectCommodity?: string
 }) {
   return (
     <Section spacing="compact">
@@ -20,7 +22,10 @@ export function ContactPage({
           <ContactIntro />
         </div>
         <div className="lg:col-span-8">
-          <ContactForm defaultEnquiryType={preselectType} />
+          <ContactForm
+            defaultEnquiryType={preselectType}
+            defaultCommodity={preselectCommodity}
+          />
         </div>
       </div>
     </Section>

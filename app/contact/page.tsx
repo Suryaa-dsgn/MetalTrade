@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
 
 import { ContactPage } from "@/components/contact/contact-page"
-import { enquiryTypeFromParam } from "@/lib/enquiries/contact"
+import {
+  enquiryTypeFromParam,
+  commodityFromParam,
+} from "@/lib/enquiries/contact"
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -17,5 +20,13 @@ export default async function ContactRoute({
   const sp = await searchParams
   // Validate ?type= against the allowlist; invalid/missing → no preselection.
   const preselectType = enquiryTypeFromParam(sp.type) ?? ""
-  return <ContactPage preselectType={preselectType} />
+  // Commodity prefill: accept the new ?commodity= or the legacy ?metal= (normalized
+  // to one canonical field), validated against the catalogue; invalid → none.
+  const preselectCommodity = commodityFromParam(sp.commodity ?? sp.metal) ?? ""
+  return (
+    <ContactPage
+      preselectType={preselectType}
+      preselectCommodity={preselectCommodity}
+    />
+  )
 }

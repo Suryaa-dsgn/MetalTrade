@@ -47,8 +47,10 @@ const FIELD_ORDER = [
 
 export function ContactForm({
   defaultEnquiryType = "",
+  defaultCommodity = "",
 }: {
   defaultEnquiryType?: ContactEnquiryType | ""
+  defaultCommodity?: string
 }) {
   const {
     register,
@@ -73,7 +75,7 @@ export function ContactForm({
       country: "",
       company: "",
       phone: "",
-      commodity: "",
+      commodity: defaultCommodity,
       quantity: "",
       origin: "",
       destination: "",
