@@ -59,6 +59,14 @@ const schema = z.object({
   uploadProvider: selector("UPLOAD_PROVIDER", ["disabled"], "disabled"),
   contentSource: selector("CONTENT_SOURCE", ["static"], "static"),
   marketSimulateFailure: boolFromEnv.catch(false),
+  // Bot-verification provider (Sec Phase 4). "disabled" is a no-op seam; a future
+  // approved provider (e.g. a challenge service) plugs in behind the same
+  // interface. No CAPTCHA UX is added and no vendor code is bundled.
+  botVerification: selector("BOT_VERIFICATION", ["disabled"], "disabled"),
+  // Whether a trusted reverse proxy / host sets the client IP header. Default
+  // false: without it the derived client identity is best-effort and spoofable
+  // (documented), and reliable per-client limiting depends on the edge layer.
+  rateLimitTrustProxy: boolFromEnv.catch(false),
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
@@ -108,6 +116,8 @@ export const serverConfig: ServerConfig = applyProductionHardening(
     uploadProvider: process.env.UPLOAD_PROVIDER,
     contentSource: process.env.CONTENT_SOURCE,
     marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
+    botVerification: process.env.BOT_VERIFICATION,
+    rateLimitTrustProxy: process.env.RATE_LIMIT_TRUST_PROXY,
     metalPriceApiKey: process.env.METALPRICE_API_KEY,
     metalsDevApiKey: process.env.METALS_DEV_API_KEY,
     eiaApiKey: process.env.EIA_API_KEY,

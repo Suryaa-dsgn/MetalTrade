@@ -13,6 +13,8 @@ const base: ServerConfig = {
   uploadProvider: "disabled",
   contentSource: "static",
   marketSimulateFailure: false,
+  botVerification: "disabled",
+  rateLimitTrustProxy: false,
   metalPriceApiKey: undefined,
   metalsDevApiKey: undefined,
   eiaApiKey: undefined,

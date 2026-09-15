@@ -1,7 +1,14 @@
 "use server"
 
+import { headers } from "next/headers"
+
 import { enquirySchemas, type EnquiryIntent } from "@/lib/validation/enquiry"
 import { getEnquirySink } from "@/lib/enquiries/sink"
+import { serverConfig } from "@/lib/config/env"
+import { enquiryRateLimiter } from "@/lib/security/rate-limiter"
+import { deriveClientKey } from "@/lib/security/client-identity"
+import { getBotVerifier } from "@/lib/security/bot-verification"
+import { logger } from "@/lib/observability/logger"
 
 /*
   Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
@@ -36,6 +43,37 @@ export async function submitEnquiry(
   intent: EnquiryIntent,
   values: unknown
 ): Promise<EnquiryResult> {
+  // Defense-in-depth, application-level rate limit on the one write path. This is
+  // NOT distributed protection (per-instance, in-memory) and its client identity
+  // is best-effort unless a trusted proxy is asserted — the authoritative limit
+  // lives at the edge (see lib/security/rate-limiter.ts).
+  const requestHeaders = await headers()
+  const client = deriveClientKey(
+    (name) => requestHeaders.get(name),
+    serverConfig.rateLimitTrustProxy
+  )
+  const decision = enquiryRateLimiter.check(`enquiry:${intent}:${client.key}`)
+  if (!decision.allowed) {
+    // No client identity / PII in the log — only that a limit tripped.
+    logger.warn("enquiry.rate_limited", { intent, trusted: client.trusted })
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        "You've sent several enquiries in a short time. Please wait a few minutes and try again.",
+    }
+  }
+
+  // Bot-verification seam (disabled by default → always passes; no UX change).
+  const bot = await getBotVerifier().verify(null)
+  if (!bot.ok) {
+    return {
+      ok: false,
+      kind: "submission",
+      message: "We couldn't verify your submission. Please try again.",
+    }
+  }
+
   // Server-side re-validation (Blueprint §7): never trust the client.
   const parsed = enquirySchemas[intent].safeParse(values)
   if (!parsed.success) {
