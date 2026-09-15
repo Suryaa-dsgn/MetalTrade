@@ -68,13 +68,49 @@ const schema = z.object({
 
 export type ServerConfig = z.infer<typeof schema>
 
-export const serverConfig: ServerConfig = schema.parse({
-  marketMode: process.env.MARKET_PROVIDER,
-  enquirySink: process.env.ENQUIRY_SINK,
-  uploadProvider: process.env.UPLOAD_PROVIDER,
-  contentSource: process.env.CONTENT_SOURCE,
-  marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
-  metalPriceApiKey: process.env.METALPRICE_API_KEY,
-  metalsDevApiKey: process.env.METALS_DEV_API_KEY,
-  eiaApiKey: process.env.EIA_API_KEY,
-})
+/*
+  Production hygiene (Sec Phase 1). Dev/demo controls must NEVER activate in
+  production, even under a misconfigured environment. We DOWNGRADE (never throw)
+  so a bad env can't take the site down, and warn once:
+
+    - MARKET_PROVIDER=mock is ignored in production → normal "registry" routing,
+      so sample/demo data can never silently replace the real feed in prod.
+    - MARKET_SIMULATE_FAILURE is ignored in production → the degraded-UI QA switch
+      cannot be flipped on a live site.
+
+  Both remain fully available in development and test.
+*/
+export function applyProductionHardening(
+  config: ServerConfig,
+  isProduction: boolean
+): ServerConfig {
+  if (!isProduction) return config
+  const hardened = { ...config }
+  if (hardened.marketMode === "mock") {
+    console.warn(
+      '[config] MARKET_PROVIDER="mock" is not permitted in production; using "registry".'
+    )
+    hardened.marketMode = "registry"
+  }
+  if (hardened.marketSimulateFailure) {
+    console.warn(
+      "[config] MARKET_SIMULATE_FAILURE is not permitted in production; ignoring."
+    )
+    hardened.marketSimulateFailure = false
+  }
+  return hardened
+}
+
+export const serverConfig: ServerConfig = applyProductionHardening(
+  schema.parse({
+    marketMode: process.env.MARKET_PROVIDER,
+    enquirySink: process.env.ENQUIRY_SINK,
+    uploadProvider: process.env.UPLOAD_PROVIDER,
+    contentSource: process.env.CONTENT_SOURCE,
+    marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
+    metalPriceApiKey: process.env.METALPRICE_API_KEY,
+    metalsDevApiKey: process.env.METALS_DEV_API_KEY,
+    eiaApiKey: process.env.EIA_API_KEY,
+  }),
+  process.env.NODE_ENV === "production"
+)
