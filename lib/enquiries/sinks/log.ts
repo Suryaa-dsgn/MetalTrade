@@ -17,8 +17,9 @@ import { logger } from "@/lib/observability/logger"
 */
 export const logEnquirySink: EnquirySink = {
   name: "log",
-  async deliver({ intent, referenceId, submittedAt, hasAttachments }) {
+  async deliver({ intent, referenceId, correlationId, submittedAt, hasAttachments }) {
     logger.info("enquiry.received", {
+      correlationId,
       intent,
       referenceId,
       submittedAt,

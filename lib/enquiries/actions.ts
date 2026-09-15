@@ -9,6 +9,7 @@ import { enquiryRateLimiter } from "@/lib/security/rate-limiter"
 import { deriveClientKey } from "@/lib/security/client-identity"
 import { getBotVerifier } from "@/lib/security/bot-verification"
 import { logger } from "@/lib/observability/logger"
+import { newCorrelationId } from "@/lib/observability/correlation"
 
 /*
   Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
@@ -43,6 +44,9 @@ export async function submitEnquiry(
   intent: EnquiryIntent,
   values: unknown
 ): Promise<EnquiryResult> {
+  // Correlate this submission's log lines without any PII.
+  const correlationId = newCorrelationId()
+
   // Defense-in-depth, application-level rate limit on the one write path. This is
   // NOT distributed protection (per-instance, in-memory) and its client identity
   // is best-effort unless a trusted proxy is asserted — the authoritative limit
@@ -55,7 +59,7 @@ export async function submitEnquiry(
   const decision = enquiryRateLimiter.check(`enquiry:${intent}:${client.key}`)
   if (!decision.allowed) {
     // No client identity / PII in the log — only that a limit tripped.
-    logger.warn("enquiry.rate_limited", { intent, trusted: client.trusted })
+    logger.warn("enquiry.rate_limited", { correlationId, intent, trusted: client.trusted })
     return {
       ok: false,
       kind: "submission",
@@ -94,6 +98,7 @@ export async function submitEnquiry(
   const delivery = await getEnquirySink().deliver({
     intent,
     referenceId,
+    correlationId,
     values: parsed.data,
     submittedAt: new Date().toISOString(),
     hasAttachments: false, // attachments are never transmitted in this build

@@ -42,6 +42,7 @@ describe("logEnquirySink", () => {
     await logEnquirySink.deliver({
       intent: "supply",
       referenceId: "DEMO-SUP-XYZ789",
+      correlationId: "abc123def456",
       values: {
         name: "Grace Hopper",
         email: "grace@example.com",
@@ -53,7 +54,7 @@ describe("logEnquirySink", () => {
     })
 
     expect(Object.keys(loggedFields).sort()).toEqual(
-      ["hasAttachments", "intent", "referenceId", "result", "submittedAt"].sort()
+      ["correlationId", "hasAttachments", "intent", "referenceId", "result", "submittedAt"].sort()
     )
     const serialized = JSON.stringify(loggedFields)
     expect(serialized).not.toContain("Grace Hopper")
