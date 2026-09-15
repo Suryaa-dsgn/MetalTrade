@@ -43,6 +43,9 @@ export type ProviderErrorCode =
   | "timeout"
   | "network"
   | "malformed"
+  // 5xx from the vendor: a transient server-side failure, distinct from an
+  // unmapped "unknown", so the retry policy can target it precisely.
+  | "server_error"
   | "unknown"
 
 export class ProviderError extends Error {

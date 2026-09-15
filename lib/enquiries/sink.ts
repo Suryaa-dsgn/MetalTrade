@@ -20,6 +20,8 @@ import { logEnquirySink } from "@/lib/enquiries/sinks/log"
 export type EnquiryDeliveryRecord = {
   intent: EnquiryIntent
   referenceId: string
+  /** Correlates this submission's log lines (no PII). */
+  correlationId?: string
   values: unknown
   submittedAt: string
   /** Attachments are never received server-side in this build; always false. */

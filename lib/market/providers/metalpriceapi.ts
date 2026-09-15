@@ -68,6 +68,7 @@ function mapErrorCode(status: number | undefined): ProviderErrorCode {
   }
   if (status >= 200 && status < 300) return "bad_request"
   if (status >= 400 && status < 500) return "bad_request"
+  if (status >= 500) return "server_error" // transient; eligible for one retry
   return "unknown"
 }
 

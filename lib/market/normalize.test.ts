@@ -101,6 +101,46 @@ describe("normalizeQuote", () => {
     expect(n.quote.source).toBe("unavailable")
   })
 
+  it("passes a barrel-denominated benchmark through by identity (no mass conversion)", () => {
+    const crude: BenchmarkConfig = {
+      ...COPPER_LIKE,
+      slug: "crude-oil",
+      benchmarkId: "brent-crude",
+      providerSymbol: "RBRTE",
+      providerUnit: "bbl",
+      canonicalUnit: "bbl",
+      sanityBand: [20, 200],
+    }
+    const n = normalizeQuote(
+      raw({ benchmarkId: "brent-crude", providerSymbol: "RBRTE", value: 109.51, providerUnit: "bbl" }),
+      crude,
+      "Brent Crude",
+      RETRIEVED,
+      "live"
+    )
+    expect(n.quote.price).toBeCloseTo(109.51, 2)
+    expect(n.quote.unit).toBe("bbl")
+    expect(n.quote.source).toBe("live")
+  })
+
+  it("refuses a barrel value against a mass canonical unit (no cross-kind conversion)", () => {
+    const bad: BenchmarkConfig = {
+      ...COPPER_LIKE,
+      providerUnit: "bbl",
+      canonicalUnit: "t", // mass — incompatible with a barrel value
+      sanityBand: [20, 200],
+    }
+    const n = normalizeQuote(
+      raw({ providerSymbol: "RBRTE", value: 109.51, providerUnit: "bbl" }),
+      bad,
+      "x",
+      RETRIEVED,
+      "live"
+    )
+    expect(n.quote.price).toBeNull()
+    expect(n.quote.source).toBe("unavailable")
+  })
+
   it("returns unavailable when the provider omitted the benchmark", () => {
     const n = normalizeQuote(undefined, GOLD, "Gold", RETRIEVED, "live")
     expect(n.quote.price).toBeNull()

@@ -78,6 +78,11 @@ export default async function MarketsPage({
         hasLive={hasLive}
         hasSample={hasSample}
       />
+      {meta.sources?.length ? (
+        <p className="mt-3 text-label uppercase tracking-label text-muted-foreground">
+          {meta.sources.map((s) => s.label).join(" · ")}
+        </p>
+      ) : null}
 
       <div className="mt-8">
         <MarketsExplorer

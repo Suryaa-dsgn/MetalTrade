@@ -1,4 +1,4 @@
-import type { MassUnit } from "@/lib/market/units"
+import type { MarketUnit } from "@/lib/market/units"
 import type { FreshnessPolicy } from "@/lib/market/freshness"
 import { FRESHNESS_PRESETS, MOCK_FRESHNESS_POLICY } from "@/lib/market/freshness"
 
@@ -85,9 +85,9 @@ export type BenchmarkConfig = {
    *  its components. The commodity itself is NEVER given one blended price. */
   components?: string[]
   /** Unit the provider value is denominated in (set when verified). */
-  providerUnit?: MassUnit
+  providerUnit?: MarketUnit
   /** Unit we display/store canonically. */
-  canonicalUnit: MassUnit
+  canonicalUnit: MarketUnit
   currency: string
   freshnessPolicy: FreshnessPolicy
   historyCapable: boolean
@@ -135,6 +135,14 @@ export const METALSDEV_ATTRIBUTION: Attribution = {
   url: "https://metals.dev",
   disclaimer:
     "LME 3-month reference benchmark, may be delayed. Not a transaction or selling price.",
+}
+export const EIA_ATTRIBUTION: Attribution = {
+  // Public-domain U.S. Government data. EIA requests acknowledgment; the access/
+  // observation date is rendered by the UI (derived, not hard-coded here).
+  label: "Source: U.S. Energy Information Administration",
+  url: "https://www.eia.gov/opendata",
+  disclaimer:
+    "Daily reference benchmark (Europe Brent Spot Price FOB), may lag. Not a transaction price.",
 }
 export const SAMPLE_ATTRIBUTION: Attribution = {
   label: "Indicative sample data",
@@ -358,21 +366,25 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
   "crude-oil": {
     slug: "crude-oil",
     benchmarkId: "brent-crude",
-    displayName: "Brent Crude", // named explicitly; never generic "Crude Oil price"
-    routing: "none", // → "live" once EIA is integrated (after Metals.Dev)
+    displayName: "Brent Crude", // label: "Brent Crude reference benchmark"
+    // LIVE via EIA (RBRTE, Europe Brent Spot Price FOB, USD/bbl). Public display
+    // is APPROVED: EIA data is public-domain U.S. Government data (attribution is
+    // rendered from EIA_ATTRIBUTION). Verified live: RBRTE ≈ 109.51 USD/bbl.
+    routing: "live",
     classification: "exact",
-    fallbackPolicy: "unavailable",
-    publicDisplayApproved: false,
-    provider: "eia", // planned
-    // Crude is priced per barrel (volume), not mass — the mass-unit conversion
-    // path does not apply; EIA integration handles its own unit.
-    canonicalUnit: "t",
+    fallbackPolicy: "live-then-lastgood",
+    publicDisplayApproved: true,
+    provider: "eia",
+    providerSymbol: "RBRTE",
+    // Crude is priced per BARREL (volume), NOT mass — no mass conversion applies.
+    providerUnit: "bbl",
+    canonicalUnit: "bbl",
     currency: "USD",
-    freshnessPolicy: MOCK_FRESHNESS_POLICY,
-    historyCapable: false,
-    unitVerified: false,
-    unavailableReason: "provider-not-integrated",
-    attribution: SAMPLE_ATTRIBUTION,
+    freshnessPolicy: FRESHNESS_PRESETS.dailyBenchmark, // daily, may lag; not real-time
+    historyCapable: false, // real Brent history available but Crude chart UI deferred
+    unitVerified: true, // verified live: RBRTE ≈ 109.51 USD/bbl
+    sanityBand: [20, 200], // broad defensive band, USD/bbl
+    attribution: EIA_ATTRIBUTION,
   },
 }
 

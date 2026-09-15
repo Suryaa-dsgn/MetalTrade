@@ -15,11 +15,40 @@ vi.mock("@/lib/market/providers/metalpriceapi", () => ({
     getLatest: vi.fn(),
   },
 }))
+// EIA is mocked too so Crude (live) has a configured provider in tests.
+vi.mock("@/lib/market/providers/eia", () => ({
+  eiaProvider: {
+    id: "eia",
+    sourceType: "live",
+    capabilities: { latest: true, history: false },
+    isConfigured: () => true,
+    getLatest: vi.fn(),
+  },
+}))
 
 import { metalpriceApiProvider } from "@/lib/market/providers/metalpriceapi"
+import { eiaProvider } from "@/lib/market/providers/eia"
 import type { FetchLatestResult } from "@/lib/market/providers/types"
 
 const getLatest = metalpriceApiProvider.getLatest as unknown as ReturnType<typeof vi.fn>
+const eiaGetLatest = eiaProvider.getLatest as unknown as ReturnType<typeof vi.fn>
+
+function brentResult(value = 109.51): FetchLatestResult {
+  return {
+    quotes: {
+      "brent-crude": {
+        benchmarkId: "brent-crude",
+        providerSymbol: "RBRTE",
+        value,
+        providerUnit: "bbl",
+        sourceTimestamp: "2026-09-09T00:00:00.000Z",
+      },
+    },
+    retrievedAt: "2026-09-15T10:00:00.000Z",
+  }
+}
+// Default: Brent resolves for every test unless a test overrides it.
+eiaGetLatest.mockResolvedValue(brentResult())
 
 function goldResult(value = 4348.21): FetchLatestResult {
   return {
@@ -80,6 +109,16 @@ describe("market service (registry-driven mixed source)", () => {
     expect(data.find((r) => r.slug === "lithium")!.source).toBe("sample")
     expect(data.find((r) => r.slug === "manganese")!.source).toBe("unavailable")
 
+    // Brent Crude live via EIA — publicly displayed, USD per barrel.
+    const crude = data.find((r) => r.slug === "crude-oil")!
+    expect(crude.source).toBe("live")
+    expect(crude.price).toBeCloseTo(109.51, 2)
+    expect(crude.unit).toBe("bbl")
+    expect(crude.updatedAt).toBe("2026-09-09T00:00:00.000Z")
+
+    // meta.sources carries the EIA attribution for the live Brent value.
+    expect(meta.sources?.some((s) => s.label.includes("Energy Information"))).toBe(true)
+
     expect(meta.degraded).toBe(false)
     expect(meta.source).toBe("live")
   })
@@ -136,6 +175,31 @@ describe("market service (registry-driven mixed source)", () => {
     expect(providerHealth.get("metalpriceapi").lastSuccessAt).not.toBeNull()
     // ...even though the individual benchmark is UNAVAILABLE.
     expect(data.find((r) => r.slug === "gold")!.source).toBe("unavailable")
+  })
+
+  it("single-flight: concurrent identical reads collapse to ONE provider call", async () => {
+    // Hold the live call open so both reads reach it while it is still pending;
+    // the second must coalesce onto the first instead of firing its own call.
+    let releaseGold!: (v: FetchLatestResult) => void
+    const goldPending = new Promise<FetchLatestResult>((r) => (releaseGold = r))
+    getLatest.mockClear() // count only THIS test's upstream calls
+    getLatest.mockReturnValue(goldPending)
+    const tick = () => new Promise((r) => setTimeout(r, 0))
+
+    const svc = await freshService()
+    const both = Promise.all([svc.getMarketTable(), svc.getMarketTable()])
+
+    // Wait until the first read parks on the (pending) provider call...
+    for (let i = 0; i < 20 && getLatest.mock.calls.length === 0; i++) await tick()
+    // ...then give the second read time to arrive and coalesce onto it.
+    for (let i = 0; i < 5; i++) await tick()
+
+    expect(getLatest).toHaveBeenCalledTimes(1) // two page loads → one upstream call
+
+    releaseGold(goldResult())
+    const [a, b] = await both
+    expect(a.data.find((r) => r.slug === "gold")!.source).toBe("live")
+    expect(b.data.find((r) => r.slug === "gold")!.source).toBe("live")
   })
 
   it("production never silently substitutes mock for a failed live benchmark", async () => {

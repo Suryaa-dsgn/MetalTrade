@@ -20,6 +20,10 @@ import type {
   ProviderBenchmarkRequest,
 } from "@/lib/market/providers/types"
 import { normalizeQuote } from "@/lib/market/normalize"
+import { coalesce, flightKey } from "@/lib/market/providers/single-flight"
+import { getCircuitBreaker } from "@/lib/market/providers/circuit-breaker"
+import { withSingleRetry } from "@/lib/market/providers/retry"
+import { minFetchIntervalMs } from "@/lib/market/providers/fetch-policy"
 import {
   getBenchmark,
   type BenchmarkConfig,
@@ -66,8 +70,6 @@ import { logger } from "@/lib/observability/logger"
   softens this.
 */
 
-const LIVE_CACHE_TTL_MS = 3 * 60 * 60 * 1000 // 3h; daily/EOD data + provider fetch-cache
-
 function isDemoMode(): boolean {
   return serverConfig.marketMode === "mock"
 }
@@ -96,46 +98,92 @@ function unavailableQuote(cfg: BenchmarkConfig | undefined, name: string): Marke
   }
 }
 
-/** Fetch a provider's latest with an L1 TTL cache; live failures are simulated
- *  via MARKET_SIMULATE_FAILURE. Returns the result or a typed failure. */
+function codeOf(err: unknown): string {
+  return err && typeof err === "object" && "code" in err
+    ? String((err as { code: unknown }).code)
+    : "unknown"
+}
+
+/**
+ * Fetch a provider's latest, protected end-to-end (Sec Phase 3):
+ *   1. L1 cache = provider-aware MIN fetch interval → serves without an upstream
+ *      call, so repeated /markets hits can't force provider requests.
+ *   2. Single-flight → concurrent identical refreshes collapse to ONE call.
+ *   3. Circuit breaker → an open provider is skipped (serve last-known-good),
+ *      with a single half-open probe after cooldown.
+ *   4. Bounded retry → at most one retry, transient failures only.
+ * Live failures are simulated via MARKET_SIMULATE_FAILURE (dev/test only; the
+ * flag is force-disabled in production by lib/config/env.ts).
+ */
 async function fetchLatest(
   provider: ReturnType<typeof getProvider>,
   requests: ProviderBenchmarkRequest[]
 ): Promise<{ ok: true; result: FetchLatestResult } | { ok: false; code: string }> {
   if (!provider) return { ok: false, code: "provider_unavailable" }
+
+  // 1. Min-fetch interval (L1 cache). Fast path, no breaker/flight involvement.
   const now = Date.now()
   const cached = providerCache.get(provider.id)
-  if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
+  if (cached && now - cached.at < minFetchIntervalMs(provider.id)) {
     logger.info("market.cache.hit", { provider: provider.id })
     return { ok: true, result: cached.data }
   }
   logger.info("market.cache.miss", { provider: provider.id })
-  providerHealth.recordAttempt(provider.id)
-  try {
-    if (serverConfig.marketSimulateFailure && provider.sourceType === "live") {
-      throw Object.assign(new Error("simulated failure"), { code: "network" })
+
+  // 2. Coalesce concurrent identical refreshes onto one execution.
+  return coalesce(flightKey(provider.id, requests), async () => {
+    // 3. Circuit breaker gate. If open (and not ready for a probe), skip the call
+    //    so the caller falls back to last-known-good / unavailable.
+    const breaker = getCircuitBreaker(provider.id)
+    const gate = breaker.tryAcquire()
+    if (!gate.allowed) {
+      logger.warn("market.circuit.short_circuit", { provider: provider.id })
+      return { ok: false as const, code: "circuit_open" }
     }
-    logger.info("market.fetch.started", { provider: provider.id, count: requests.length })
-    const result = await provider.getLatest(requests)
-    providerCache.set(provider.id, { data: result, at: now })
-    providerHealth.recordSuccess(provider.id, result.quota)
-    logger.info("market.fetch.success", {
+
+    providerHealth.recordAttempt(provider.id)
+    logger.info("market.fetch.started", {
       provider: provider.id,
-      returned: Object.keys(result.quotes).length,
+      count: requests.length,
+      breaker: gate.state,
     })
-    return { ok: true, result }
-  } catch (err) {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code: unknown }).code)
-        : "unknown"
-    providerHealth.recordFailure(provider.id, code)
-    logger.warn("market.fetch.failed", { provider: provider.id, code })
-    if (code === "rate_limit" || code === "quota") {
-      logger.warn("market.provider.rate_limited", { provider: provider.id, code })
+    try {
+      // 4. Bounded retry (transient only). Failure simulation is a synthetic
+      //    transient "network" error, so it exercises the retry path too.
+      const result = await withSingleRetry(
+        () => {
+          if (serverConfig.marketSimulateFailure && provider.sourceType === "live") {
+            return Promise.reject(
+              Object.assign(new Error("simulated failure"), { code: "network" })
+            )
+          }
+          return provider.getLatest(requests)
+        },
+        {
+          onRetry: (code) =>
+            logger.warn("market.fetch.retry", { provider: provider.id, code }),
+        }
+      )
+      providerCache.set(provider.id, { data: result, at: Date.now() })
+      providerHealth.recordSuccess(provider.id, result.quota)
+      breaker.recordSuccess()
+      logger.info("market.fetch.success", {
+        provider: provider.id,
+        returned: Object.keys(result.quotes).length,
+      })
+      return { ok: true as const, result }
+    } catch (err) {
+      const code = codeOf(err)
+      const quotaLike = code === "rate_limit" || code === "quota"
+      providerHealth.recordFailure(provider.id, code)
+      breaker.recordFailure(quotaLike) // quota/rate-limit trip the breaker at once
+      logger.warn("market.fetch.failed", { provider: provider.id, code })
+      if (quotaLike) {
+        logger.warn("market.provider.rate_limited", { provider: provider.id, code })
+      }
+      return { ok: false as const, code }
     }
-    return { ok: false, code }
-  }
+  })
 }
 
 /** Resolve a single benchmark that had no fresh value, per its fallback policy. */
@@ -301,6 +349,17 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
   const provider = anyLive ? "metalpriceapi" : "mock"
   const source = anyLive ? "live" : "mock"
   const meta = degraded ? degradedMeta(provider, source) : okMeta(provider, source)
+
+  // Attribution for a compact "Source: …" line — distinct attributions of the
+  // benchmarks actually displayed live (registry-driven, not hard-coded in the UI).
+  const sources = new Map<string, { label: string; url?: string }>()
+  for (const [slug, q] of Object.entries(bySlug)) {
+    if (q.source !== "live") continue
+    const a = getBenchmark(slug)?.attribution
+    if (a) sources.set(a.label, { label: a.label, url: a.url })
+  }
+  if (sources.size > 0) meta.sources = [...sources.values()]
+
   return { bySlug, meta }
 }
 

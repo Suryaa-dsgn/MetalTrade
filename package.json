@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "audit:prod": "npm audit --omit=dev"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

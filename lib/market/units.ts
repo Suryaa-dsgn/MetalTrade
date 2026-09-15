@@ -20,12 +20,32 @@ export const GRAMS_PER_UNIT = {
 
 export type MassUnit = keyof typeof GRAMS_PER_UNIT
 
+/*
+  Volume units are DELIBERATELY separate from mass units. Crude oil is priced per
+  barrel (volume) — it is NOT convertible to a mass unit without a density we do
+  not have, so `bbl` never enters the mass table and any bbl↔mass conversion is
+  refused (returns null), never guessed.
+*/
+export const VOLUME_UNITS = ["bbl"] as const
+export type VolumeUnit = (typeof VOLUME_UNITS)[number]
+
+/** Any unit a benchmark may be denominated in (mass or volume). */
+export type MarketUnit = MassUnit | VolumeUnit
+
 /** User-selectable display units for the overview (plus "native"). */
 export const DISPLAY_UNITS = ["native", "t", "kg", "lb"] as const
 export type DisplayUnit = (typeof DISPLAY_UNITS)[number]
 
 export function isMassUnit(unit: string): unit is MassUnit {
   return unit in GRAMS_PER_UNIT
+}
+
+export function isVolumeUnit(unit: string): unit is VolumeUnit {
+  return (VOLUME_UNITS as readonly string[]).includes(unit)
+}
+
+export function isMarketUnit(unit: string): unit is MarketUnit {
+  return isMassUnit(unit) || isVolumeUnit(unit)
 }
 
 /** Convert a per-unit price from one mass unit to another. Returns null if

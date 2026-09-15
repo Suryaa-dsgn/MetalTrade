@@ -1,252 +1,202 @@
 # Project Handoff — Oriental Energy and Minerals
 
 Compact context for a fresh Claude Code session. Read this first, then only the
-deeper docs you actually need. This reflects the repository at commit `1bd6575`
-(Phase 9B). Git preserves history; this file describes CURRENT state only.
+deeper docs you actually need. Reflects the repo at commit `c0868cb`. Git
+preserves history; this file describes CURRENT state only.
 
 ## Fresh session bootstrap
 
 1. Read this handoff.
 2. Read `CLAUDE.md` (agent rules, guardrails, working protocol).
-3. Read the Product Blueprint only if product behaviour/IA is relevant.
-4. Read the Design System only if visual/component work is relevant.
-5. Read `docs/content-claims-register.md` (+ the client DOCX) for any public-copy work.
-6. Run `git log --oneline` and `git status` before editing.
-7. Work on ONE phase/task only; plan first, wait for approval (per CLAUDE.md).
-8. Validate (tsc, lint, build, responsive) and STOP for review.
+3. Read `docs/market-provider-readiness.md` for ANY market-data work (verified
+   provider contracts, live/gated status, promotion + upgrade steps).
+4. Read the Product Blueprint / Design System only if product-IA / visual work.
+5. Read `docs/content-claims-register.md` (+ the client DOCX) for public-copy work.
+6. `git log --oneline` and `git status` before editing.
+7. ONE phase/task per session; PLAN first, wait for approval (per CLAUDE.md).
+8. Validate (tsc, lint, test, build, responsive) and STOP for review.
 
-## 1. Current project status
+## 0. Where we are RIGHT NOW (most important)
 
-- **Product:** trust-first B2B website + market-intelligence portal for **Oriental
-  Energy and Minerals Limited**, a licensed mineral aggregator.
-- **Mode:** CLIENT REFERENCE / VISION BUILD. Everything runs on mock/demo data; no
-  live providers connected.
-- **State:** Phases 1–10 + an ad-hoc content phase (9B) are implemented and
-  committed. All major pages, forms, market demo, provider seams, and image system
-  exist.
-- **Latest commit:** `1bd6575` "Phase 9B: client content integration and claims
-  alignment".
-- **Next runbook phase:** **Phase 11 — SEO, analytics, and legal** (not started).
-  See §16. Do not auto-start it; wait for the user to say "Proceed to Phase 11".
+- **Branch:** `fix/markets-explorer-router-update-during-render` (NOT merged to
+  `main`; not pushed). Several sessions of work live here on top of `main`.
+- **Latest commit:** `c0868cb` "Market Phase D2 (EIA): live Brent Crude benchmark".
+- **Big change since the old handoff:** the market layer is no longer mock-only.
+  A production-grade **multi-provider market-data architecture** now serves REAL
+  live benchmarks alongside labelled sample data, with strong boundaries.
+- **Tests:** **87 passing** (Vitest). `tsc`, `eslint`, `next build` all green.
+- **Immediately pending decision:** a **Production Security & Reliability audit
+  (Stage A) was delivered and is AWAITING USER APPROVAL** to start Stage B
+  implementation. See §8. No security code has been written yet.
+- **Phase 11 (SEO/analytics/legal) is still NOT started** and must not be
+  auto-started.
 
-## 2. Read these files first (source of truth)
+## 1. Product (unchanged — do not drift)
 
-- `CLAUDE.md` → agent rules, repo conventions, guardrails, phase-gated protocol.
-- `README.md` → tech stack + architecture overview + integration/env table.
-- `docs/physical-metals-trading-platform-ux-product-blueprint.md` → product
-  behaviour / IA / journeys / scope.
-- `docs/metal-trading-portal-design-system.md` → tokens, type, components, states.
-- `docs/build-runbook.md` → phase plan (Phases 1–12) and per-phase exit gates.
-- `docs/content-claims-register.md` → approved vs pending public claims (Phase 9B).
-- `Website Content Inputs - Answers in Blue.docx` (repo root, untracked) → the
-  client's raw business answers. Facts already extracted into config + the claims
-  register; do not re-derive unless verifying.
-- This handoff → session summary and continuation pointer only.
+Trust-first B2B website + market-intelligence portal for **Oriental Energy and
+Minerals Limited (OEML)**, a **licensed mineral aggregator** (NOT a miner). The
+site does not execute trades; it is form-first. All the Phase 9B content/claims
+rules still hold (see §11 of the OLD handoff content, now in git history, and
+`docs/content-claims-register.md`). Key guardrails unchanged: no invented
+prices/claims, no purple, light mode, no em dashes in public copy, WCAG 2.2 AA.
 
-Config that is the practical source of truth for content/business facts:
-`data/config/site.ts`, `company.ts`, `logistics.ts`, `enquiry.ts`;
-`data/mock/metals.ts` (catalogue) + `data/mock/market.ts` (sample quotes).
-
-## 3. Product model
-
-- Oriental Energy and Minerals Limited = **licensed mineral aggregator**.
-- NOT a licensed miner / mining company / mining operator. A pending mining licence
-  is **internal only** (claims register); never publish it as a current credential.
-- **Suppliers are not introduced directly to buyers.** The company sits between
-  reviewed supply and vetted corporate/institutional demand.
-- Verification is described as a **process**, never a blanket "verified supply".
-- Form-first engagement. The site does not execute trades.
-
-## 4. Confirmed commodity catalogue (12)
+## 2. Confirmed catalogue (12 commodities)
 
 Gold, Copper (cathode), Lithium, Columbite-Tantalite (Coltan), Tin, Lead-Zinc,
-Manganese, Rare Earth Elements (REE), Barite, Bitumen, Iron Ore, Crude Oil.
+Manganese, Rare Earth Elements, Barite, Bitumen, Iron Ore, Crude Oil. Slugs in
+`data/mock/metals.ts`. Bitumen + Crude Oil are commodities, not metals.
 
-- **Bitumen and Crude Oil are commodities, not metals.** Do not call all 12
-  "metals". Use "commodities / minerals and commodities / material". "Markets" stays
-  the nav name (metal-market UI wording is fine there).
-- Slugs live in `data/mock/metals.ts`. Removed in 9B: Aluminium, Nickel, standalone
-  Zinc (Zinc folded into Lead-Zinc), and the old Rhodium/FeSiMn "pressure rows".
+## 3. MARKET DATA — current live/sample/unavailable status (critical)
 
-## 5. Market-demo policy (important, do not regress)
+The market layer routes each commodity through a **BenchmarkRegistry →
+ProviderRouter → provider adapter**. Per-commodity status:
 
-- Copper, Gold, Lithium → keep clearly-labelled **sample** market data
-  (`data/mock/market.ts`, keyed by symbol Cu/Au/Li).
-- The other 9 commodities → **no invented price/history/symbol**; they resolve to
-  "Unavailable" in tables and a "Detailed profile in preparation" detail page.
-- `Metal.symbol` and `Metal.forms` are OPTIONAL (`lib/market/types.ts`); commodities
-  without an approved market identity have no symbol/forms (no fabricated codes).
-- All market values stay labelled **indicative / sample / not live**. Copper keeps a
-  working Recharts chart. Do NOT remove visible mock data because APIs aren't
-  connected — this is a vision build.
+| Commodity | Source now | Provider / benchmark | Notes |
+|---|---|---|---|
+| **Gold** | **LIVE** | MetalpriceAPI `XAU`, USD/**troy oz**, EOD | ~4,348. Displayed live. |
+| **Crude Oil** | **LIVE** | EIA `RBRTE` (Europe Brent Spot FOB), USD/**bbl** | ~109.51. Labelled "Brent Crude reference benchmark". Public-domain data → displayed live with EIA attribution. |
+| **Copper** | sample (labelled) | Metals.Dev `lme_copper`, USD/**MT** — VERIFIED live but display-GATED | Shows sample 8,420 + chart. `publicDisplayApproved:false`. |
+| **Lithium** | sample (labelled) | MetalpriceAPI `XLI` (paid + semantic review) | Shows sample 13,750. |
+| **Lead-Zinc** | unavailable | two separate verified benchmarks (`lme_lead`,`lme_zinc`) in `LEAD_ZINC_BENCHMARKS` | NEVER blended into one price; catalogue not split. |
+| Tin, Manganese, Iron Ore, Coltan, REE, Barite, Bitumen | unavailable ("in preparation") | — | Bitumen must NEVER map to crude. |
 
-## 6. Home / catalogue visual policy
+- **Providers integrated & verified live (Free tiers):** MetalpriceAPI (Gold),
+  Metals.Dev (LME Copper/Lead/Zinc — verified, gated), EIA (Brent — live).
+- **Why some are gated:** Metals.Dev commercial public display needs a paid
+  subscription; EIA is public-domain so Brent is shown live. Invariant enforced
+  by tests: `routing:"live"` REQUIRES `publicDisplayApproved:true`.
+- **Keys:** in untracked `.env.local` (git-ignored): `METALPRICE_API_KEY`,
+  `METALS_DEV_API_KEY`, `EIA_API_KEY`. `MARKET_PROVIDER` unset → normal registry
+  routing; `MARKET_PROVIDER=mock` = full sample/demo build.
+- **NO live market history** anywhere: MetalpriceAPI history is paid-gated,
+  Metals.Dev timeseries is precious-only, EIA Brent history exists but the
+  crude/volume chart UI is deferred. Copper keeps a SAMPLE chart. Never present
+  synthetic history under a live quote.
 
-- Home "What we trade" renders **all 12** commodities with the existing `MetalCard`.
-- Real images where supplied (Copper, Gold, Lithium); neutral `AssetPlaceholder`
-  otherwise (`lib/assets/metals.ts` has `available:false` records for the 9 new
-  ones; drop a cleared image in + flip `available` later, no component change).
-- Implemented grid: `sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` (2 tablet, 3
-  laptop, 4 wide desktop, 1 mobile). Do not invent or fetch images.
+## 4. Market architecture (files)
 
-## 7. Confirmed client workflows
+```
+lib/market/
+  benchmarks.ts        BenchmarkRegistry: BENCHMARKS (by slug) + LEAD_ZINC_BENCHMARKS;
+                       benchmarkId (≠ slug), routing, classification, fallbackPolicy,
+                       publicDisplayApproved, provider/providerSymbol, providerUnit,
+                       canonicalUnit (MarketUnit = mass | "bbl"), sanityBand, attribution.
+  service.ts           registry+router composition, mixed-source, PARTIAL responses
+                       first-class, L1 cache (3h) + repository last-known-good, meta.sources.
+  normalize.ts         normalizeQuote(raw,cfg,name,retrievedAt,sourceType) → unit convert
+                       (mass only) + sanity guard; refuses on unknown/mismatch/out-of-band.
+  units.ts             MassUnit + VolumeUnit("bbl") = MarketUnit; convertMassPrice (mass-only,
+                       bbl↔mass REFUSED); isMassUnit/isVolumeUnit/isMarketUnit.
+  freshness.ts         policies incl. endOfDay, delayed15m, dailyBenchmark(14d), MOCK.
+  meta.ts              ReadMeta { provider, source, degraded, sources[] (attributions) }.
+  providers/
+    types.ts           BenchmarkProvider contract: getLatest(requests:{benchmarkId,providerSymbol}[])
+                       → quotes keyed by benchmarkId; RawQuote; ProviderError(code); capabilities.
+    router.ts          getProvider(id) → {metalpriceapi, metalsdev, eia, mock}; null = fail-safe.
+    metalpriceapi.ts   Gold. Header X-API-KEY auth, Zod-validated, timeout, quota headers.
+    metalsdev.ts       LME. api_key query (never logged), Zod, mt→MT, timeout.
+    eia.ts             Brent. api_key query (never logged), Zod, string→number, $/BBL→bbl,
+                       period→ISO, latest-per-series, empty-data→unavailable.
+    mock.ts            sample provider (sourceType "sample") + getSampleExtendedChanges/History.
+    health.ts          per-provider health (attempt/success/failure/rateLimited) — tracked,
+                       NOT yet used to stop calls (no circuit breaker yet).
+  repository/
+    types.ts           MarketObservationRepository interface (save/getLatest/getLastKnownGood/getHistory).
+    memory.ts          in-memory impl (per-instance; lost on cold start — documented limitation).
+    index.ts           getObservationRepository() factory (swap point for durable store later).
+```
+UI labelling is source-aware: `market-status.tsx` shows "Sample" for sample rows;
+`market-freshness.tsx` shows Live/Sample pills; markets + detail pages render
+`meta.sources` ("Source: …"). Provider assignments/pricing/commercial terms live
+in `docs/market-provider-readiness.md`, NOT in the registry.
 
-**Supplier:** material type + quantity + location + documents → initial review →
-company engineer inspects facility and goods → if approved AND a vetted buyer is in
-place → **independent third-party inspection and testing**. Client mentioned **SGS**
-internally; public use of the SGS name is NOT approved — use "independent
-third-party inspection and testing".
+## 5. Stack & conventions (unchanged)
 
-**Buyer:** sends specification, target volume, order frequency, target price,
-delivery destination → requirements confirmed → suitable supply proposed → price
-quote. The buyer form has a **Target price** field.
+Next.js 16 App Router, React 19, TS, Tailwind v4 tokens, Base UI + CVA,
+Heroicons (chrome) + Phosphor regular (domain), Recharts, RHF + Zod. `zod` is now
+a DIRECT dependency (was phantom). **Vitest** added (`npm test`) with a
+`server-only` test stub in `test/vitest-stubs/`. Server Components by default.
+`cn` via `createCn` (do not revert — button text colour). No em dashes in copy.
 
-**Logistics:** company coordinates **inspection, freight, and customs at the origin**
-airport/port. Buyer handles **customs at the destination**. **Financing is not
-provided.** Do not claim warehousing, insurance, tracking, specific ports/lanes, or
-"all transport modes" as standard services (moved to out-of-scope in 9B).
+## 6. Providers seams / env (server-only)
 
-## 8. Trust / verification / licensing
+`lib/config/env.ts` (Zod-validated, `import "server-only"`): `MARKET_PROVIDER`
+(registry|mock), `ENQUIRY_SINK` (log|disabled), `UPLOAD_PROVIDER` (disabled),
+`CONTENT_SOURCE` (static), `MARKET_SIMULATE_FAILURE` (dev/QA), plus the three
+provider key secrets. Enquiries: `submitEnquiry` server action re-validates with
+Zod; `log` sink records redacted metadata only (no PII). Uploads disabled.
 
-Confirmed and published: supplier verification; origin documents; engineer +
-independent third-party inspection; licence/permit/registration numbers available to
-vetted counterparties **on request**. Do NOT: publish licence documents; show
-certification badges; claim association membership (none currently); call OEML a
-miner/mining company; publish the pending mining licence. No KYB/beneficial-ownership
-/sanctions claims (client did not confirm; removed in 9B).
+## 7. Completed work on this branch (in order)
 
-## 9. Regions and counterparties
+1. `0d74f25` Fix Router-update-during-render in `markets-explorer.tsx` (URL sync
+   moved to a guarded `useEffect`; debounce preserved).
+2. `576c940` Declare `zod` as a direct dependency (was transitive/phantom).
+3. `e875480`→`c46b9a5` First real provider (MetalpriceAPI/Gold): registry,
+   adapter, normalization, mixed-source service, source-aware UI, readiness doc.
+4. `c353726` (Sec-arch Phase A) provider router + request-object contract + Zod.
+5. `66e2218` (Phase B) MarketObservationRepository seam (in-memory).
+6. `e34bafe` (Phase C) provider health + standardized observability events.
+7. `6c3d980` (D2) Metals.Dev LME Copper/Lead/Zinc — verified live, display-gated.
+8. `c0868cb` (D2) EIA Brent Crude — LIVE + attribution + `bbl` volume unit.
 
-Suppliers: currently Africa, open to qualified supply from other regions. Buyers:
-industrial buyers and financial institutions in Asia and the Middle East. Avoid vague
-"global network" claims.
+## 8. IMMEDIATE next step (what the user is mid-flow on)
 
-## 10. Proof points (current implementation)
+A **"Production Security & Reliability Hardening"** task is in progress. **Stage A
+(audit + plan) was DELIVERED in chat and is AWAITING USER APPROVAL.** No security
+code written yet. Key audit outcomes to carry forward:
 
-Published: **"4 years of trade experience"** (exact wording; never "4 years in
-business" / "operating for 4 years") and **"12 confirmed commodities"**. The
-**16-country** claim is held **pending** (unpublished) until clarified whether it
-refers to OEML, historical team activity, or both. Home `ProofSection` +
-`components/company/proof-points.tsx` reflect this.
+- **Posture is strong:** 0 prod dependency vulns; secrets server-only (not in
+  bundle/HTML/logs); no `dangerouslySetInnerHTML`/eval/child_process; no SSRF
+  (fetch only in adapters w/ fixed URLs); server-side Zod on the one write path.
+- **Findings to fix in Stage B (by phase):**
+  - **H1** no security headers/CSP (`next.config.ts` empty). → Sec Phase 2.
+  - **H2** enquiry fields have NO `.max()` caps (unbounded input). → Sec Phase 1.
+  - **H3** `MARKET_SIMULATE_FAILURE` + `MARKET_PROVIDER=mock` NOT production-gated.
+    → Sec Phase 1.
+  - **M1** no inbound rate limit on the enquiry action. → Sec Phase 4.
+  - **M2** no single-flight coalescing (cold-cache thundering herd). → Sec Phase 3.
+  - **M3** no circuit breaker (health tracked but unused). → Sec Phase 3.
+  - **M4** in-memory state breaks horizontal scaling (durable store later).
+  - **M5** log sink uses `console.info` not the redacting logger. → Sec Phase 1.
+  - **M6** no CI security gate. → Sec Phase 5.
+  - dev-only vitest vulns (do NOT `audit fix --force`).
+- **Proposed Stage B phases:** 1 critical hygiene → 2 headers/CSP (report-only
+  first) → 3 provider resilience (single-flight + breaker + bounded retry) → 4
+  rate limiting + Turnstile seam (disabled) → 5 secret-scan test + CI gate → 6
+  docs (`docs/security-production-readiness.md`) + correlation IDs.
+- **Deployment platform is undecided** (no vercel.json/Dockerfile/CI). Edge
+  DDoS/WAF/bot/rate-limit are HOST DASHBOARD actions (recommend Vercel or
+  Cloudflare-fronted), NOT Next.js code.
+- **Open approval questions:** platform choice; CSP report-only rollout; app-level
+  rate limiter now vs edge-only; per-instance circuit breaker OK; durable KV
+  (Upstash/Vercel KV) approval when multi-instance; CI provider; bounded-retry
+  policy. Do NOT add Redis/Postgres/KV without explicit approval.
 
-## 11. Contact / enquiries
+If the user says "proceed", start Sec Phase 1 (code-only, low risk), one
+increment per commit, validating tsc/lint/test/build + security checks each time.
 
-Form-first; no invented email/phone/hours/SLA (`data/config/site.ts` contact is
-null). Enquiry routes: `/contact` (hub) → `/enquire/supply`,
-`/enquire/buying-requirement`, `/enquire/logistics`, `/enquire/general`. Submission is
-mocked (DEMO reference codes); keep that behaviour.
+## 9. Runbook phases still pending (after security work)
 
-## 12. Architecture snapshot
+- **Phase 11 — SEO, analytics, legal** (metadata/OpenGraph, sitemap, robots,
+  canonical, structured data, consent-aware PII-free analytics, and the legal
+  pages: privacy/terms/cookies/accessibility/market-disclaimer). Footer already
+  links `/privacy` `/terms` `/cookies` `/accessibility` but those routes DO NOT
+  exist yet. NOT started; gated on explicit go-ahead.
+- **Phase 12 — final QA.**
+- Client-dependent: cleared imagery for the 9 non-imaged commodities; resolve
+  pending claim clarifications (see `docs/content-claims-register.md`).
 
-Routes (`app/`): `/`, `/markets`, `/markets/[slug]`, `/trade-logistics`, `/company`,
-`/contact`, `/enquire/{supply,buying-requirement,logistics,general}`, `/style-guide`
-(dev-only, blocked in production).
+## 10. Things the next agent must NOT do
 
-**Frontend:** Next.js 16 App Router + React 19 + TypeScript; Tailwind v4 semantic
-tokens (`app/globals.css`); Base UI primitives (shadcn layer) + `class-variance-
-authority`; Heroicons chrome barrel (`components/ui/icon.tsx`) + Phosphor `regular`
-domain barrel (`components/ui/domain-icon.tsx`); Geist fonts; Recharts; React Hook
-Form + Zod. Server Components by default; `"use client"` only where needed.
-`cn` (`lib/utils.ts`) is configured via `createCn` to register the custom `--text-*`
-font-size scale so text-size utilities don't strip text-colour classes (this is why
-primary buttons render correct white text — do not revert).
-
-**Market:** page → `lib/market/service.ts` (read layer: caching, per-feed freshness,
-failover, `ReadMeta`) → `MarketProvider` (`lib/market/provider.ts`, quotes/history
-only) → mock provider today (`lib/market/providers/mock.ts`); catalogue/editorial via
-`ContentSource` (`lib/content/source.ts`). Selected by `MARKET_PROVIDER` (default
-mock). Sample data stays labelled not-live.
-
-**Enquiries:** form → RHF/Zod → `submitEnquiry` server action re-validates → pluggable
-`EnquirySink` (`lib/enquiries/sink.ts`); default `log` sink records redacted metadata
-only (no PII); `ENQUIRY_SINK` (default log). No email/CRM.
-
-**Uploads:** `lib/uploads/service.ts` is a **disabled** seam (no storage, no presign
-endpoint); attachment UI is a non-uploading shell. `UPLOAD_PROVIDER` (default
-disabled).
-
-**Content:** `ContentSource` static/in-repo today (`CONTENT_SOURCE`, default static);
-CMS not live. Config in `lib/config/env.ts` is server-only (Zod-validated selectors;
-unknown value warns + falls back). `MARKET_SIMULATE_FAILURE=1` exercises degraded UI.
-`.env.example` documents selectors; no secrets committed.
-
-## 13. Design rules that must not regress
-
-Light mode default; **no purple/violet/lavender** (Industrial Cobalt primary is
-blue). Restrained institutional/industrial language; Geist typography; tabular
-numerals for market data; no glassmorphism/neon/gradient-text/AI-slop; not every
-section a rounded card. **No em dashes in public copy** (use commas/colons/periods).
-Subtle image hover zoom scales the **image only**, never the whole card (CSS-only,
-`components/editorial/asset-image.tsx` + `.asset-zoom*` in globals.css). Price chart
-uses a subtle cobalt area gradient under a crisp line. Preserve accessibility (WCAG
-2.2 AA) and `prefers-reduced-motion`.
-
-## 14. Asset rules
-
-Imagery only from `/public/images` via the `AssetImage` system; placeholders remain
-for missing assets; never fetch/hotlink/fabricate stock; record `license/usage`
-provenance (`lib/assets/*`); images must not imply client ownership/operations unless
-verified. Currently missing: cleared images for the 9 newer commodities (Tin,
-Lead-Zinc, Manganese, Iron Ore, Coltan, REE, Barite, Bitumen, Crude Oil) and cleared
-replacements for the excluded home buyer/supplier/lithium originals (archived under
-`design/asset-originals/`, git-ignored).
-
-## 15. Completed work (from git history + repo state)
-
-- [x] Foundation, tokens, global shell, header/footer
-- [x] Home (hero rotator, propositions, network flow, proof, CTA)
-- [x] Markets overview + Copper detail/chart template + minimal "in preparation" template
-- [x] Trade & Logistics; Company / trust
-- [x] Enquiry hub + supplier/buyer/logistics/general forms (RHF/Zod, mocked)
-- [x] Image/asset pass + shared image hover zoom
-- [x] Phase 10 provider-ready seams (market/enquiry/upload/content), mock defaults
-- [x] Em-dash cleanup; primary-button colour fix; chart area gradient; CTA ship image
-- [x] Phase 9B client content + claims alignment (12 commodities, workflows, boundaries)
-- [ ] Phase 11 — SEO, analytics, legal (NOT started; footer legal links currently 404)
-- [ ] Phase 12 — final QA
-- [ ] Client-dependent: real imagery for 9 commodities; resolve pending clarifications
-
-## 16. Current active task / next session starting point
-
-**Phase 9B is already implemented — do NOT redo it.**
-
-NEXT RUNBOOK PHASE: **Phase 11 — SEO, analytics, and legal** (see
-`docs/build-runbook.md`). It is gated on the user saying "Proceed to Phase 11".
-Scope (per runbook): metadata/OpenGraph, sitemap, robots, canonical URLs, legitimate
-structured data, consent-aware analytics with **no PII**, and the legal pages
-(**privacy, terms, cookies, accessibility, market disclaimer**). Note: the footer
-already links `/privacy`, `/terms`, `/cookies`, `/accessibility`, but those routes do
-**not exist yet** — Phase 11 must create them. Then Phase 12 = final QA.
-
-Also outstanding but client-dependent (not autonomous work): supply cleared images
-for the 9 commodities + the excluded home slots; resolve the §17 clarifications.
-
-If the user instead asks for a different task, derive scope from actual repo state,
-not from this list.
-
-## 17. Pending client clarifications
-
-1. Can SGS be named publicly?
-2. Does "active across 16 countries" refer to the current company, historical team
-   activity, or both?
-3. Should the bank-guarantee transaction structure be explained publicly?
-4. Should public phone/email be added later?
-5. Has the mining licence now been granted, or is it still pending?
-6. Are any logistics capabilities approved beyond inspection, freight, and
-   origin-side customs?
-
-## 18. Things the next agent must NOT do
-
-- Do not redesign existing pages or change the design system.
-- Do not replace mock market data with empty states; do not invent prices, forms,
-  grades, specifications, or ticker symbols.
-- Do not call OEML a licensed miner/mining company; do not advertise the pending
-  mining licence publicly.
-- Do not say suppliers are introduced directly to buyers; do not add financing; do
-  not invent logistics capabilities (warehousing/insurance/tracking/lanes/ports).
-- Do not invent phone/email/hours/SLA.
-- Do not use em dashes in public copy; do not reintroduce purple.
-- Do not connect live providers/secrets without explicit approval.
-- Do not revert the `cn` font-size config (breaks button text colour).
-- Do not start unrelated phases automatically; one phase per session, plan first,
-  stop for review.
+- Do not merge/push this branch or start Phase 11 without being asked.
+- Do not start Security Stage B until the user approves the Stage A plan.
+- Do not add a database/Redis/KV/microservices, build custom DDoS in Next, or
+  guess the deploy platform — all require approval/decisions.
+- Do not display Metals.Dev Copper/Lead/Zinc live (commercial gate) or blend
+  Lead-Zinc into one price; do not map Bitumen to crude; do not present synthetic
+  history under a live quote; do not invent prices/claims.
+- Do not log secrets, full provider URLs, or enquiry PII; keep keys out of the
+  client bundle. Do not revert the `cn` font-size config.
+- Do not redesign the Markets UI or change product behaviour except where
+  security requires it.
+</content>

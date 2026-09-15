@@ -59,20 +59,68 @@ const schema = z.object({
   uploadProvider: selector("UPLOAD_PROVIDER", ["disabled"], "disabled"),
   contentSource: selector("CONTENT_SOURCE", ["static"], "static"),
   marketSimulateFailure: boolFromEnv.catch(false),
+  // Bot-verification provider (Sec Phase 4). "disabled" is a no-op seam; a future
+  // approved provider (e.g. a challenge service) plugs in behind the same
+  // interface. No CAPTCHA UX is added and no vendor code is bundled.
+  botVerification: selector("BOT_VERIFICATION", ["disabled"], "disabled"),
+  // Whether a trusted reverse proxy / host sets the client IP header. Default
+  // false: without it the derived client identity is best-effort and spoofable
+  // (documented), and reliable per-client limiting depends on the edge layer.
+  rateLimitTrustProxy: boolFromEnv.catch(false),
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
   metalsDevApiKey: secret,
+  eiaApiKey: secret,
 })
 
 export type ServerConfig = z.infer<typeof schema>
 
-export const serverConfig: ServerConfig = schema.parse({
-  marketMode: process.env.MARKET_PROVIDER,
-  enquirySink: process.env.ENQUIRY_SINK,
-  uploadProvider: process.env.UPLOAD_PROVIDER,
-  contentSource: process.env.CONTENT_SOURCE,
-  marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
-  metalPriceApiKey: process.env.METALPRICE_API_KEY,
-  metalsDevApiKey: process.env.METALS_DEV_API_KEY,
-})
+/*
+  Production hygiene (Sec Phase 1). Dev/demo controls must NEVER activate in
+  production, even under a misconfigured environment. We DOWNGRADE (never throw)
+  so a bad env can't take the site down, and warn once:
+
+    - MARKET_PROVIDER=mock is ignored in production → normal "registry" routing,
+      so sample/demo data can never silently replace the real feed in prod.
+    - MARKET_SIMULATE_FAILURE is ignored in production → the degraded-UI QA switch
+      cannot be flipped on a live site.
+
+  Both remain fully available in development and test.
+*/
+export function applyProductionHardening(
+  config: ServerConfig,
+  isProduction: boolean
+): ServerConfig {
+  if (!isProduction) return config
+  const hardened = { ...config }
+  if (hardened.marketMode === "mock") {
+    console.warn(
+      '[config] MARKET_PROVIDER="mock" is not permitted in production; using "registry".'
+    )
+    hardened.marketMode = "registry"
+  }
+  if (hardened.marketSimulateFailure) {
+    console.warn(
+      "[config] MARKET_SIMULATE_FAILURE is not permitted in production; ignoring."
+    )
+    hardened.marketSimulateFailure = false
+  }
+  return hardened
+}
+
+export const serverConfig: ServerConfig = applyProductionHardening(
+  schema.parse({
+    marketMode: process.env.MARKET_PROVIDER,
+    enquirySink: process.env.ENQUIRY_SINK,
+    uploadProvider: process.env.UPLOAD_PROVIDER,
+    contentSource: process.env.CONTENT_SOURCE,
+    marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
+    botVerification: process.env.BOT_VERIFICATION,
+    rateLimitTrustProxy: process.env.RATE_LIMIT_TRUST_PROXY,
+    metalPriceApiKey: process.env.METALPRICE_API_KEY,
+    metalsDevApiKey: process.env.METALS_DEV_API_KEY,
+    eiaApiKey: process.env.EIA_API_KEY,
+  }),
+  process.env.NODE_ENV === "production"
+)

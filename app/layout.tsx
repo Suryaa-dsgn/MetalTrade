@@ -24,7 +24,11 @@ export const metadata: Metadata = {
     "Licensed mineral aggregator: physical commodity sourcing, verification, logistics coordination, and market-intelligence portal.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"

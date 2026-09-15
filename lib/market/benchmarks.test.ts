@@ -9,7 +9,7 @@ import {
 } from "@/lib/market/benchmarks"
 import { isProviderImplemented } from "@/lib/market/providers/router"
 import { metals } from "@/data/mock/metals"
-import { isMassUnit } from "@/lib/market/units"
+import { isMarketUnit } from "@/lib/market/units"
 
 describe("benchmark registry", () => {
   it("has an entry for every catalogue slug", () => {
@@ -23,10 +23,30 @@ describe("benchmark registry", () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it("uses only known mass units for canonical units", () => {
+  it("uses only known market units (mass or volume) for canonical units", () => {
     for (const b of Object.values(BENCHMARKS)) {
-      expect(isMassUnit(b.canonicalUnit), `${b.slug} canonicalUnit`).toBe(true)
+      expect(isMarketUnit(b.canonicalUnit), `${b.slug} canonicalUnit`).toBe(true)
     }
+  })
+
+  it("routes Brent Crude live via EIA (public-domain, per barrel), publicly approved", () => {
+    const crude = getBenchmark("crude-oil")!
+    expect(crude.routing).toBe("live")
+    expect(crude.provider).toBe("eia")
+    expect(crude.providerSymbol).toBe("RBRTE")
+    expect(crude.providerUnit).toBe("bbl")
+    expect(crude.canonicalUnit).toBe("bbl")
+    expect(crude.currency).toBe("USD")
+    expect(crude.classification).toBe("exact")
+    expect(crude.publicDisplayApproved).toBe(true)
+    expect(crude.displayName).toBe("Brent Crude")
+  })
+
+  it("keeps Bitumen unavailable — never mapped to a crude proxy", () => {
+    const bitumen = getBenchmark("bitumen")!
+    expect(bitumen.routing).toBe("none")
+    expect(bitumen.provider).toBeUndefined()
+    expect(bitumen.classification).toBe("unavailable")
   })
 
   it("only routes gold live on the current (free) plan", () => {
