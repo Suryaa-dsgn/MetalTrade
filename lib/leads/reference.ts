@@ -5,8 +5,9 @@
   - Public reference: OEML-YYYY-XXXXXX (year + 6 unambiguous chars). Six random
     characters CAN collide, so uniqueness is enforced at the repository and the
     service regenerates on collision — this generator never assumes uniqueness.
-  - Submission token: an opaque idempotency key (UUID) — server-generated in 2A;
-    client-generated from 2B.
+
+  The idempotency submission token lives in `submission-token.ts` (client-generated
+  from Phase 2B).
 */
 
 // Alphabet excludes the most ambiguous glyphs (I, O, 0, 1) for readable refs.
@@ -22,11 +23,6 @@ function uuid(): string {
 
 /** Opaque internal id (UUID). */
 export function newInternalId(): string {
-  return uuid()
-}
-
-/** Opaque idempotency key (UUID). */
-export function newSubmissionToken(): string {
   return uuid()
 }
 

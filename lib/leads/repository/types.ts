@@ -28,7 +28,14 @@ export class LeadReferenceCollisionError extends Error {
   }
 }
 
+/** Persistence durability capability — lets the service enforce production safety
+ *  without inspecting an implementation by filename/class. "ephemeral" stores lose
+ *  data on restart / are not shared across instances (dev/test only). */
+export type RepositoryDurability = "ephemeral" | "durable"
+
 export interface LeadRepository {
+  /** Whether this store is safe for production (durable) or dev/test only. */
+  readonly durability: RepositoryDurability
   /** Atomically insert the lead, or return the existing lead with the same
    *  submissionToken. Throws LeadReferenceCollisionError on a reference clash with a
    *  different lead; throws on any other persistence failure. */

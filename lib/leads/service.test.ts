@@ -72,6 +72,7 @@ describe("submitLead — persistence success boundary", () => {
 
   it("returns a persistence error when the repository fails", async () => {
     const repository: LeadRepository = {
+      durability: "durable",
       createOrGet: async () => {
         throw new Error("db down")
       },
@@ -84,6 +85,7 @@ describe("submitLead — persistence success boundary", () => {
     const real = new InMemoryLeadRepository()
     let calls = 0
     const repository: LeadRepository = {
+      durability: "durable",
       createOrGet: async (lead: Lead): Promise<CreateOrGetResult> => {
         calls++
         if (calls === 1) throw new LeadReferenceCollisionError()
@@ -116,6 +118,47 @@ describe("submitLead — notification never fails submission", () => {
     const result = await submitLead(input, ctx, { repository, notifier })
     expect(result.ok).toBe(true)
     expect(repository.size()).toBe(1) // lead is persisted regardless
+  })
+})
+
+describe("submitLead — production ephemeral-store safety (fail closed)", () => {
+  it("refuses to persist to an ephemeral store in production", async () => {
+    const repository = new InMemoryLeadRepository() // durability: "ephemeral"
+    const notify = vi.fn().mockResolvedValue([])
+    const result = await submitLead(input, ctx, {
+      repository,
+      notifier: { notify },
+      isProduction: true,
+    })
+    expect(result).toEqual({ ok: false, reason: "unavailable" })
+    expect(repository.size()).toBe(0) // no lead created
+    expect(notify).not.toHaveBeenCalled() // no notification
+  })
+
+  it("logs a non-PII lead.submission.unavailable event with the config reason", async () => {
+    const captured: { event: string; fields?: LogFields }[] = []
+    vi.spyOn(logger, "error").mockImplementation(
+      (event: string, fields?: LogFields) => {
+        captured.push({ event, fields })
+      }
+    )
+    await submitLead(input, ctx, {
+      repository: new InMemoryLeadRepository(),
+      isProduction: true,
+    })
+    const unavailable = captured.find((e) => e.event === "lead.submission.unavailable")
+    expect(unavailable).toBeTruthy()
+    expect(unavailable?.fields).toMatchObject({ reason: "non_durable_store" })
+    const serialized = JSON.stringify(captured)
+    expect(serialized).not.toContain("Ada Lovelace")
+    expect(serialized).not.toContain("ada@example.com")
+  })
+
+  it("works normally against the ephemeral store outside production", async () => {
+    const repository = new InMemoryLeadRepository()
+    const result = await submitLead(input, ctx, { repository, isProduction: false })
+    expect(result.ok).toBe(true)
+    expect(repository.size()).toBe(1)
   })
 })
 

@@ -1,22 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { submitContactEnquiry } from "@/lib/enquiries/actions"
 import type { EnquiryResult } from "@/lib/enquiries/actions"
+import { SubmissionTokenLifecycle } from "@/lib/leads/submission-token"
 
 export type SubmitStatus = "idle" | "submitting" | "success" | "error"
 
 /*
   Submission state for the unified Contact form. Prevents double submission and
   surfaces a generic submission error; field validation errors are mapped back
-  onto the form by the caller. Delivery is the existing log-sink stub — no live
-  email/CRM/database.
+  onto the form by the caller.
+
+  Idempotency (Phase 2B): one submission token per mounted form lifecycle, held in a
+  ref. It is REUSED across validation failures, transient server/network errors, and
+  double-submits (so the backend can de-duplicate). A genuinely new enquiry gets a
+  new token via a fresh mount (or `lifecycle.renew()`). The token is never put in the
+  URL/cookies/localStorage/analytics.
 */
 export function useContactSubmit() {
   const [status, setStatus] = useState<SubmitStatus>("idle")
   const [referenceId, setReferenceId] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const lifecycleRef = useRef<SubmissionTokenLifecycle | null>(null)
+  if (lifecycleRef.current === null) {
+    lifecycleRef.current = new SubmissionTokenLifecycle()
+  }
 
   async function submit(values: unknown): Promise<EnquiryResult> {
     if (status === "submitting") {
@@ -24,7 +34,7 @@ export function useContactSubmit() {
     }
     setStatus("submitting")
     setSubmissionError(null)
-    const result = await submitContactEnquiry(values)
+    const result = await submitContactEnquiry(values, lifecycleRef.current!.current())
     if (result.ok) {
       setReferenceId(result.referenceId)
       setStatus("success")

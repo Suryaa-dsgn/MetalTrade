@@ -28,7 +28,9 @@ import { logger } from "@/lib/observability/logger"
 
 export type LeadSubmissionResult =
   | { ok: true; lead: Lead; created: boolean }
-  | { ok: false; reason: "persistence" }
+  // "unavailable": durable persistence is not configured in production (fail closed);
+  // "persistence": the store errored.
+  | { ok: false; reason: "unavailable" | "persistence" }
 
 export type LeadSubmissionDeps = {
   repository?: LeadRepository
@@ -36,6 +38,8 @@ export type LeadSubmissionDeps = {
   now?: () => Date
   newId?: () => string
   newReference?: (now: Date) => string
+  /** Injected env flag (default reads NODE_ENV in ONE place). */
+  isProduction?: boolean
 }
 
 const MAX_REFERENCE_ATTEMPTS = 5
@@ -50,6 +54,19 @@ export async function submitLead(
   const nowFn = deps.now ?? (() => new Date())
   const idFn = deps.newId ?? newInternalId
   const referenceFn = deps.newReference ?? newPublicReference
+  const isProduction = deps.isProduction ?? process.env.NODE_ENV === "production"
+
+  // Production safety: an ephemeral (in-memory) store must NEVER masquerade as
+  // durable production persistence. Fail closed rather than return a false success.
+  // Enforcement is driven by the repository's `durability` capability — no filename/
+  // class inspection, and NODE_ENV is read in exactly one place (above).
+  if (isProduction && repository.durability !== "durable") {
+    logger.error("lead.submission.unavailable", {
+      correlationId: ctx.correlationId,
+      reason: "non_durable_store",
+    })
+    return { ok: false, reason: "unavailable" }
+  }
 
   logger.info("lead.submission.started", {
     correlationId: ctx.correlationId,
@@ -95,6 +112,8 @@ export async function submitLead(
           correlationId: ctx.correlationId,
           leadId: outcome.lead.id,
           reference: outcome.lead.reference,
+          enquiryType: outcome.lead.enquiryType,
+          commodity: outcome.lead.commodity,
         })
       }
 

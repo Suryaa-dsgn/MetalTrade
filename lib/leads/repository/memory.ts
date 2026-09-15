@@ -14,6 +14,8 @@ import {
   a UNIQUE(submission_token) constraint will enforce in Postgres.
 */
 export class InMemoryLeadRepository implements LeadRepository {
+  /** Dev/test only — data does not survive a restart or span instances. */
+  readonly durability = "ephemeral" as const
   private readonly byToken = new Map<string, Lead>()
   private readonly references = new Set<string>()
 

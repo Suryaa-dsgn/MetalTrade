@@ -15,7 +15,10 @@ import { getBotVerifier } from "@/lib/security/bot-verification"
 import { logger } from "@/lib/observability/logger"
 import { newCorrelationId } from "@/lib/observability/correlation"
 import { submitLead } from "@/lib/leads/service"
-import { newSubmissionToken } from "@/lib/leads/reference"
+import {
+  isValidSubmissionToken,
+  tokenFingerprint,
+} from "@/lib/leads/submission-token"
 
 /*
   Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
@@ -133,10 +136,14 @@ export async function submitEnquiry(
   email/CRM); the success UI still notes that live delivery / persistent storage is
   not connected yet.
 
-  The submissionToken is server-generated for now; the Contact form will supply a
-  client token in Phase 2B to make cross-request de-duplication real.
+  The submissionToken is CLIENT-generated (Phase 2B) and treated as untrusted input:
+  it is validated (UUID-shaped, length-bounded) and only ever logged as a short
+  fingerprint, never raw. It is the idempotency key for atomic create-or-return.
 */
-export async function submitContactEnquiry(values: unknown): Promise<EnquiryResult> {
+export async function submitContactEnquiry(
+  values: unknown,
+  submissionToken: unknown
+): Promise<EnquiryResult> {
   const correlationId = newCorrelationId()
 
   // Defense-in-depth rate limit, keyed per client (not per enquiry type, so it
@@ -186,10 +193,29 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
     return { ok: false, kind: "validation", fieldErrors }
   }
 
+  // Validate the untrusted idempotency token (UUID-shaped, bounded). Log only a
+  // fingerprint, never the raw token.
+  if (!isValidSubmissionToken(submissionToken)) {
+    logger.warn("lead.submission.rejected", {
+      correlationId,
+      reason: "invalid_token",
+      tokenFingerprint:
+        typeof submissionToken === "string"
+          ? tokenFingerprint(submissionToken)
+          : undefined,
+    })
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        "We couldn't submit your enquiry just now. Please try again in a moment.",
+    }
+  }
+
   // Persist the lead (system of record). Success is determined here, not by
-  // notification. In-memory only in this phase.
+  // notification. In production an ephemeral store fails closed (see submitLead).
   const result = await submitLead(parsed.data, {
-    submissionToken: newSubmissionToken(),
+    submissionToken,
     correlationId,
     source: "contact-form",
   })
@@ -199,7 +225,9 @@ export async function submitContactEnquiry(values: unknown): Promise<EnquiryResu
       ok: false,
       kind: "submission",
       message:
-        "We couldn't submit your enquiry just now. Please try again in a moment.",
+        result.reason === "unavailable"
+          ? "We couldn't submit your enquiry right now. Please try again later."
+          : "We couldn't submit your enquiry just now. Please try again in a moment.",
     }
   }
 

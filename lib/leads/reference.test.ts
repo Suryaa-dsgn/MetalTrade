@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
   newInternalId,
-  newSubmissionToken,
   newPublicReference,
   PUBLIC_REFERENCE_PATTERN,
 } from "@/lib/leads/reference"
@@ -10,12 +9,9 @@ import {
   Backend Phase 2A — id/reference generation shape + practical uniqueness.
 */
 
-describe("newInternalId / newSubmissionToken", () => {
+describe("newInternalId", () => {
   it("returns opaque UUID-shaped ids", () => {
     expect(newInternalId()).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    )
-    expect(newSubmissionToken()).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     )
   })
