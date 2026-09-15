@@ -2,16 +2,18 @@
 
 import { useState } from "react"
 
-import { submitEnquiry, type EnquiryResult } from "@/lib/enquiries/actions"
-import type { EnquiryIntent } from "@/lib/validation/enquiry"
+import { submitContactEnquiry } from "@/lib/enquiries/actions"
+import type { EnquiryResult } from "@/lib/enquiries/actions"
 
 export type SubmitStatus = "idle" | "submitting" | "success" | "error"
 
 /*
-  Shared submission state for a form. Each form still owns its own RHF instance
-  and schema (amendment 2). Prevents double submission (amendment 15).
+  Submission state for the unified Contact form. Prevents double submission and
+  surfaces a generic submission error; field validation errors are mapped back
+  onto the form by the caller. Delivery is the existing log-sink stub — no live
+  email/CRM/database.
 */
-export function useEnquirySubmit(intent: EnquiryIntent) {
+export function useContactSubmit() {
   const [status, setStatus] = useState<SubmitStatus>("idle")
   const [referenceId, setReferenceId] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
@@ -22,7 +24,7 @@ export function useEnquirySubmit(intent: EnquiryIntent) {
     }
     setStatus("submitting")
     setSubmissionError(null)
-    const result = await submitEnquiry(intent, values)
+    const result = await submitContactEnquiry(values)
     if (result.ok) {
       setReferenceId(result.referenceId)
       setStatus("success")
@@ -30,7 +32,7 @@ export function useEnquirySubmit(intent: EnquiryIntent) {
       setSubmissionError(result.message)
       setStatus("error")
     } else {
-      // Validation errors are surfaced on the fields by the form.
+      // Validation errors are shown on the fields by the form.
       setStatus("idle")
     }
     return result

@@ -1,23 +1,10 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { CATALOGUE_METAL_SLUGS } from "@/data/config/enquiry"
-import { SupplierForm } from "@/components/forms/supplier-form"
-
-export const metadata: Metadata = {
-  title: "Supply material",
-  description:
-    "Bring a supply position to qualified demand. Development demo. No CRM or email submission occurs.",
-}
-
-export default async function SupplyEnquiryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
-  const sp = await searchParams
-  const raw = typeof sp.metal === "string" ? sp.metal : undefined
-  // Validate the ?metal= prefill against the catalogue (amendment 7).
-  const defaultMetal =
-    raw && CATALOGUE_METAL_SLUGS.includes(raw) ? raw : undefined
-  return <SupplierForm defaultMetal={defaultMetal} />
+/*
+  Consolidated into the unified Contact page (Contact redesign, Phase 1). This
+  route is retained for backward compatibility and permanently (308) redirects to
+  /contact with the supply enquiry type preselected. No form logic lives here.
+*/
+export default function SupplyEnquiryRedirect() {
+  permanentRedirect("/contact?type=supply")
 }

@@ -1,13 +1,10 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { LogisticsForm } from "@/components/forms/logistics-form"
-
-export const metadata: Metadata = {
-  title: "Discuss logistics",
-  description:
-    "Share a route for the trade desk to review. Development demo. No CRM or email submission occurs.",
-}
-
-export default function LogisticsEnquiryPage() {
-  return <LogisticsForm />
+/*
+  Consolidated into the unified Contact page (Contact redesign, Phase 1). Retained
+  for backward compatibility; permanently (308) redirects to /contact with the
+  logistics enquiry type preselected. No form logic lives here.
+*/
+export default function LogisticsEnquiryRedirect() {
+  permanentRedirect("/contact?type=logistics")
 }

@@ -1,13 +1,10 @@
-import type { Metadata } from "next"
+import { permanentRedirect } from "next/navigation"
 
-import { GeneralForm } from "@/components/forms/general-form"
-
-export const metadata: Metadata = {
-  title: "General enquiry",
-  description:
-    "Any other question for the trade desk. Development demo. No CRM or email submission occurs.",
-}
-
-export default function GeneralEnquiryPage() {
-  return <GeneralForm />
+/*
+  Consolidated into the unified Contact page (Contact redesign, Phase 1). Retained
+  for backward compatibility; permanently (308) redirects to /contact with the
+  general enquiry type preselected. No form logic lives here.
+*/
+export default function GeneralEnquiryRedirect() {
+  permanentRedirect("/contact?type=general")
 }
