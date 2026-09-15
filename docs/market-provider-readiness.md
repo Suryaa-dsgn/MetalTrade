@@ -4,6 +4,43 @@ Operational record for the live market-data integration. Verified against real
 API responses on 2026-09-14. Update this file whenever a plan, verified
 capability, or commercial term changes.
 
+## Provider decision summary
+
+Consolidated provider strategy (from the provider-research phase). Detailed
+research is in `docs/provider-research/` (`yahoo-finance-readiness.md`,
+`remaining-commodity-provider-research.md`).
+
+**APPROVED / CURRENT**
+- Gold → MetalpriceAPI
+- Copper / Lead / Zinc → Metals.Dev
+- Brent Crude → EIA
+
+**NEXT FREE CANDIDATES** (redistribution-legal with attribution; monthly cadence)
+- Iron Ore → World Bank / IMF monthly reference
+- Tin → World Bank / IMF monthly reference
+
+**LICENSED / FUTURE** (paid PRA; public display needs a separate license — see below)
+- Lithium → Benchmark Mineral Intelligence or Fastmarkets
+- Rare Earth Elements → Benchmark or Fastmarkets
+- Manganese → Fastmarkets
+- Barite → Fastmarkets
+- Bitumen → Argus (a regional benchmark must be selected; no single global one)
+- Coltan / Tantalum → further Fastmarkets research required
+
+**REJECTED FOR PUBLIC PRODUCTION**
+- Yahoo Finance (no redistribution rights; futures ≠ our spot/LME/EIA benchmarks; unstable undocumented endpoints)
+- Commodity ETFs / equities used as commodity prices (e.g. LIT, REMX, ZINC.L — equity baskets, not prices)
+- Unlicensed direct LME redistribution / public display
+- Annual USGS data used as a live market-price feed
+
+**Rights are three separate things — never conflate them:**
+1. **Internal API usage** — fetching/using values inside our systems. Granted by an API subscription.
+2. **Public website display** — showing a value to anonymous visitors. NOT automatic; every PRA (Fastmarkets, Benchmark, Argus) requires a separate display/redistribution license. World Bank / IMF permit this WITH attribution.
+3. **Derived-data rights** — publishing values computed from the source (indices, charts, transforms). The most restricted; a further contractual clause for PRAs.
+
+An API key never implies public-display or derived-data rights. This is the same
+gate already applied to Metals.Dev (`publicDisplayApproved`).
+
 ## Multi-provider architecture (foundation)
 
 ```
