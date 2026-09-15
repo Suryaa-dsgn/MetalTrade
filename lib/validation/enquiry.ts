@@ -34,6 +34,8 @@ export const FIELD_MAX = {
   deliveryWindow: 120,
   mode: 80,
   targetDate: 40,
+  country: 80,
+  quantity: 60, // free-text estimated quantity, e.g. "2,000 tonnes/month"
   message: 4000,
 } as const
 
@@ -167,3 +169,65 @@ export const enquirySchemas = {
   logistics: logisticsSchema,
   general: generalSchema,
 } as const
+
+/*
+  Unified Contact schema (Contact redesign, Phase 1). ONE schema for the single
+  Contact form; the earlier per-intent schemas above are retained (still tested)
+  for the future backend-consolidation phase. Field names are shaped so the future
+  backend can build a Lead directly (enquiryType, name, email, phone, company,
+  country, commodity, quantity, origin, destination, message).
+
+  Security parity with the per-intent schemas: every string is length-bounded via
+  FIELD_MAX, the object is `.strict()` (unexpected fields rejected, not stripped),
+  and `commodity` is conditionally required for buy/supply via superRefine.
+  Quantity is a concise FREE-TEXT string (e.g. "500 MT") — no numeric coercion or
+  unit component in this phase.
+*/
+export const CONTACT_ENQUIRY_TYPES = [
+  "buy",
+  "supply",
+  "logistics",
+  "general",
+  "partnership",
+] as const
+export type ContactEnquiryType = (typeof CONTACT_ENQUIRY_TYPES)[number]
+
+/** Commodity is required only for buying and supply enquiries. */
+export function isCommodityRequired(type: ContactEnquiryType | ""): boolean {
+  return type === "buy" || type === "supply"
+}
+
+export const contactEnquirySchema = z
+  .object({
+    enquiryType: z.enum(CONTACT_ENQUIRY_TYPES, {
+      message: "Select what we can help with",
+    }),
+    name: required("Full name", FIELD_MAX.name),
+    email,
+    country: required("Country or location", FIELD_MAX.country),
+    company: optional("Company", FIELD_MAX.company),
+    phone: optional("Phone / WhatsApp", FIELD_MAX.phone),
+    commodity: optional("Commodity", FIELD_MAX.commodity),
+    quantity: optional("Estimated quantity", FIELD_MAX.quantity),
+    origin: optional("Origin", FIELD_MAX.origin),
+    destination: optional("Destination", FIELD_MAX.destination),
+    message: required("Requirement details", FIELD_MAX.message),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    if (isCommodityRequired(val.enquiryType) && !val.commodity?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["commodity"],
+        message: "Select a commodity for a buying or supply enquiry",
+      })
+    }
+  })
+
+// What the form controls hold (enquiryType may be unset until chosen).
+export type ContactEnquiryInput = Omit<
+  z.input<typeof contactEnquirySchema>,
+  "enquiryType"
+> & { enquiryType: ContactEnquiryType | "" }
+// Validated/normalized output.
+export type ContactEnquiryValues = z.infer<typeof contactEnquirySchema>

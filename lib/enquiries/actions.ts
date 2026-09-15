@@ -2,7 +2,11 @@
 
 import { headers } from "next/headers"
 
-import { enquirySchemas, type EnquiryIntent } from "@/lib/validation/enquiry"
+import {
+  enquirySchemas,
+  contactEnquirySchema,
+  type EnquiryIntent,
+} from "@/lib/validation/enquiry"
 import { getEnquirySink } from "@/lib/enquiries/sink"
 import { serverConfig } from "@/lib/config/env"
 import { enquiryRateLimiter } from "@/lib/security/rate-limiter"
@@ -10,6 +14,11 @@ import { deriveClientKey } from "@/lib/security/client-identity"
 import { getBotVerifier } from "@/lib/security/bot-verification"
 import { logger } from "@/lib/observability/logger"
 import { newCorrelationId } from "@/lib/observability/correlation"
+import { submitLead } from "@/lib/leads/service"
+import {
+  isValidSubmissionToken,
+  tokenFingerprint,
+} from "@/lib/leads/submission-token"
 
 /*
   Enquiry submission. Validation stays here; DELIVERY is delegated to a pluggable
@@ -115,4 +124,112 @@ export async function submitEnquiry(
   }
 
   return { ok: true, referenceId }
+}
+
+/*
+  Unified Contact submission (Backend Phase 2A). Same server-side security as
+  submitEnquiry — rate limit + bot seam + correlation IDs + redacted logging — which
+  all run BEFORE the lead pipeline. After validation, the payload is handed to the
+  LeadSubmissionService, which normalizes it, persists the Lead (the success
+  boundary), and notifies via the log provider. Persistence — NOT notification —
+  determines success. Storage is in-memory only in this phase (no database, no
+  email/CRM); the success UI still notes that live delivery / persistent storage is
+  not connected yet.
+
+  The submissionToken is CLIENT-generated (Phase 2B) and treated as untrusted input:
+  it is validated (UUID-shaped, length-bounded) and only ever logged as a short
+  fingerprint, never raw. It is the idempotency key for atomic create-or-return.
+*/
+export async function submitContactEnquiry(
+  values: unknown,
+  submissionToken: unknown
+): Promise<EnquiryResult> {
+  const correlationId = newCorrelationId()
+
+  // Defense-in-depth rate limit, keyed per client (not per enquiry type, so it
+  // can't be bypassed by rotating the type). Best-effort identity; the edge owns
+  // the authoritative limit.
+  const requestHeaders = await headers()
+  const client = deriveClientKey(
+    (name) => requestHeaders.get(name),
+    serverConfig.rateLimitTrustProxy
+  )
+  const decision = enquiryRateLimiter.check(`contact:${client.key}`)
+  if (!decision.allowed) {
+    logger.warn("lead.submission.rejected", {
+      correlationId,
+      reason: "rate_limit",
+      trusted: client.trusted,
+    })
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        "You've sent several enquiries in a short time. Please wait a few minutes and try again.",
+    }
+  }
+
+  const bot = await getBotVerifier().verify(null)
+  if (!bot.ok) {
+    logger.warn("lead.submission.rejected", { correlationId, reason: "bot" })
+    return {
+      ok: false,
+      kind: "submission",
+      message: "We couldn't verify your submission. Please try again.",
+    }
+  }
+
+  // Server-side re-validation (authoritative): bounded, strict, conditional.
+  const parsed = contactEnquirySchema.safeParse(values)
+  if (!parsed.success) {
+    logger.warn("lead.submission.rejected", { correlationId, reason: "validation" })
+    const fieldErrors: Record<string, string> = {}
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0]
+      if (typeof key === "string" && !(key in fieldErrors)) {
+        fieldErrors[key] = issue.message
+      }
+    }
+    return { ok: false, kind: "validation", fieldErrors }
+  }
+
+  // Validate the untrusted idempotency token (UUID-shaped, bounded). Log only a
+  // fingerprint, never the raw token.
+  if (!isValidSubmissionToken(submissionToken)) {
+    logger.warn("lead.submission.rejected", {
+      correlationId,
+      reason: "invalid_token",
+      tokenFingerprint:
+        typeof submissionToken === "string"
+          ? tokenFingerprint(submissionToken)
+          : undefined,
+    })
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        "We couldn't submit your enquiry just now. Please try again in a moment.",
+    }
+  }
+
+  // Persist the lead (system of record). Success is determined here, not by
+  // notification. In production an ephemeral store fails closed (see submitLead).
+  const result = await submitLead(parsed.data, {
+    submissionToken,
+    correlationId,
+    source: "contact-form",
+  })
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      kind: "submission",
+      message:
+        result.reason === "unavailable"
+          ? "We couldn't submit your enquiry right now. Please try again later."
+          : "We couldn't submit your enquiry just now. Please try again in a moment.",
+    }
+  }
+
+  return { ok: true, referenceId: result.lead.reference }
 }
