@@ -1,0 +1,63 @@
+name: CI
+
+# Sec Phase 5 — portable CI + security gates. The command sequence below is the
+# authoritative pipeline; it is host-independent and can be reproduced on any CI
+# provider. This GitHub Actions wiring exists because the repo is hosted on GitHub.
+#
+# Required gates (build fails if any fail):
+#   npm ci
+#   npx tsc --noEmit
+#   npm run lint
+#   npm test
+#   npm run build
+#   npm run audit:prod   (npm audit --omit=dev — PRODUCTION dependencies only)
+#   npm run secret-scan  (client-bundle + prerendered-HTML secret scan)
+#
+# Notes:
+#   - Dev-only advisories are intentionally NOT a hard gate (see audit-dev, which
+#     is informational). `npm audit fix --force` is never run.
+#   - Production hygiene, security-header, logger-redaction, single-flight,
+#     circuit-breaker and retry behaviours are all covered by `npm test`.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (clean, lockfile-exact)
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Secret scan (client bundle + prerendered HTML)
+        run: npm run secret-scan
+
+      - name: Audit (production dependencies)
+        run: npm run audit:prod
+
+      - name: Audit (dev, informational only)
+        run: npm audit || true
