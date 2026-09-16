@@ -289,4 +289,3 @@ a767b87 docs: provider-research reports + provider decision summary
 --noEmit` · `npm run lint` · `npm run build` · `npm run secret-scan` (after build) ·
 `npm run audit:prod` · `npm run db:migrate` (needs `DATABASE_URL`). Validate at 375 /
 768 / 1024 / 1440 for responsive work.
-</content>
