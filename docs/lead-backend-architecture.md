@@ -264,20 +264,26 @@ Phase 2A adds `lib/leads/{types,reference,normalize,service}.ts`,
 add the Postgres repository, email/CRM adapters + env selectors + secrets, retry/job
 handling, and admin read interfaces.
 
-## 18. Implementation phases
+## 18. Implementation phases (actual sequence)
 
-- **2A** (this phase): domain types, reference generation, normalization, minimal
-  atomic `LeadRepository` + in-memory impl + factory, `LeadSubmissionService`,
-  `NotificationProvider` seam + log provider, integration into `submitContactEnquiry`.
-  In-memory only; no external deps.
-- **2B:** client `submissionToken` (the one form change) + reference/idempotency
-  end-to-end + observability polish.
-- **2C:** `LeadNotificationService` email adapter behind the neutral seam (disabled by
-  default; provider chosen with hosting/domain/inbox).
-- **2D:** durable Postgres `LeadRepository` (unique constraints, least-privilege
-  creds). Gated on platform/DB approval.
-- **2E:** notification retry (bounded sync + durable `pending` re-attempt); outbox/queue
-  only if warranted.
+This is the single authoritative sequence. (An earlier draft had 2C/2D swapped —
+email vs Postgres; that stale numbering has been removed.)
+
+- **2A (done):** domain types, reference generation, normalization, minimal atomic
+  `LeadRepository` + in-memory impl + factory, `LeadSubmissionService`,
+  `NotificationProvider` seam + log provider, integration into
+  `submitContactEnquiry`. In-memory only; no external deps.
+- **2B (done):** client `submissionToken` (the one form change) + reference/
+  idempotency end-to-end + production ephemeral-store safety + observability polish.
+- **2C (done):** durable Postgres `LeadRepository` (unique constraints, atomic
+  `ON CONFLICT`, fail-closed factory). See §20.
+- **2D (done — this phase):** email notification FOUNDATION behind the existing
+  `NotificationProvider` seam — provider-neutral email model, deterministic content
+  builder, `EmailTransport` abstraction, fake transport, fail-loud provider
+  selection, server-only config. NO email SDK/vendor wired yet. See §21.
+- **2E:** durable notification delivery/retry (bounded sync retry + a durable
+  `pending` re-attempt via `lead_notification_deliveries`); outbox/queue only if
+  warranted.
 - **2F:** CRM adapter, admin read/query interfaces, retention/anonymization.
 
 ## 19. Questions requiring approval (for later phases)
@@ -361,3 +367,162 @@ Provision Postgres → `npm run db:migrate` applied → server-only `DATABASE_UR
 (+ `DATABASE_SSL=require`) set → `LEAD_STORE=postgres` → TLS confirmed → submission
 smoke test. Until all hold, production continues to fail closed. Email/CRM remain out
 of scope (later phases).
+
+### Preserved Postgres production-readiness notes (carried into 2D)
+1. **PGlite is CI/integration only.** `@electric-sql/pglite` runs the real adapter
+   SQL in tests with no infra, but a **real managed PostgreSQL must receive a
+   pre-production smoke test** before production activation — PGlite is not a
+   substitute for validating the actual managed instance.
+2. **TLS certificate validation.** When the managed provider is selected, verify the
+   TLS certificate chain. Do **not** use `rejectUnauthorized:false` (or any
+   equivalent verification-disabling shortcut) to silence a certificate error;
+   `DATABASE_SSL=require` must mean verified TLS.
+3. **Fail early on missing DB config.** With `LEAD_STORE=postgres` but required DB
+   configuration missing, prefer failing early where practical rather than degrading
+   silently; runtime DB failures must still be handled safely (no lead loss, no
+   silent fallback to memory).
+
+---
+
+## 21. Phase 2D — email notification foundation (implemented)
+
+Builds the internal trade-desk email-notification architecture behind the EXISTING
+`NotificationProvider` seam (§7). It does **not** wire a real email vendor, send
+customer acknowledgement emails, add CRM, an admin UI, a queue/worker, or persistent
+retry — all out of scope. No Postgres change. No Contact UI change.
+
+### Core boundary (unchanged)
+PostgreSQL remains the system of record. Success = **lead durably persisted**. Email
+is a downstream notification; an email failure NEVER deletes or invalidates a
+persisted lead. Notification runs only for a newly `created` lead, so a duplicate/
+idempotent submission never sends a second email.
+
+### Dependency direction (preserved)
+```
+Contact UI → submitContactEnquiry → LeadSubmissionService → LeadRepository
+LeadSubmissionService → LeadNotificationService → NotificationProvider
+                                               → (email) EmailNotificationProvider
+                                                   → EmailTransport (SES/Resend later)
+```
+The UI and `LeadSubmissionService` import no email SDK, credentials, or transport.
+`LeadSubmissionService` contains no provider-specific email code.
+
+### Two layers, one trust boundary
+- **`EmailNotificationProvider`** (`lib/leads/notification/email/provider.ts`) — the
+  only layer that knows a `Lead`. Maps `Lead → EmailMessage` (via the content
+  builder), sends through an `EmailTransport`, maps the transport result to the
+  seam's `NotificationResult`, and normalizes any thrown error into a safe typed
+  failure. `channel:"email"`.
+- **`EmailTransport`** (`lib/leads/notification/email/types.ts`) — knows only an
+  `EmailMessage`; never receives a `Lead`. Future SES/Resend adapters implement this
+  and stay isolated from the lead domain. `send(message, options?)` where `options`
+  may carry an `AbortSignal`.
+
+### Email message model (provider-neutral)
+`EmailMessage { to; from; replyTo?; subject; text; html? }`. **`from`/`to` come only
+from validated server configuration; lead-controlled input never influences from/to
+(nor CC/BCC — not added this phase).** `replyTo` is optional and, when enabled, is the
+lead's ALREADY-VALIDATED email, passed as a structured field (never a hand-built
+header). The lead supplies body content and subject inputs only.
+
+### Content ownership (pure/deterministic)
+`content.ts` is presentation ONLY — no persistence, status, retry, provider
+selection, or env access. `buildLeadEmail(lead, config)` is pure.
+- **Subject:** `New OEML Lead: <Type> - <Commodity or General>` using CONTROLLED
+  values: a fixed enquiry-type label map, and the canonical catalogue display name
+  for commodity (`other` → "Other"; absent → "General"). No name/email/company/
+  message in the subject (predictable + avoids PII exposure).
+- **Body (plain text + restrained HTML):** Reference, Submitted at, Enquiry Type,
+  Commodity, Name, Company, Email, Phone / WhatsApp, Country, Quantity, Origin,
+  Destination, Requirement details. Absent optional fields are omitted cleanly (never
+  `undefined`/`null`). HTML is transactional and email-safe (one table, system fonts,
+  minimal inline styling, no remote images, no JavaScript, no tracking pixels) — it
+  does not recreate the website design system.
+
+### HTML escaping / injection safety
+Every lead-controlled value rendered into HTML passes through `escapeHtml` (`escape.ts`)
+— leads are untrusted content even after validation (validation bounds shape/length,
+it does not neutralize markup). Prevents HTML injection. Plain text is body-only and
+never used to build raw headers. Transports receive structured fields, so header
+injection and arbitrary-recipient manipulation are structurally prevented.
+
+### Provider selection — fail-closed AND fail-LOUD
+Config selector `EMAIL_PROVIDER` = `none | ses | resend` (default `none`).
+- `none` → email intentionally DISABLED. The `EmailNotificationProvider` is **not
+  registered** (so no misleading per-lead failure events); the log provider keeps
+  operating. Sender/recipient are not required. The app starts normally.
+- `ses | resend` → must be operational. No transport adapter is implemented in this
+  phase (vendor not approved), so `createEmailTransport` throws
+  `UnsupportedEmailProviderError`. This is surfaced **loudly** as
+  `lead.notification.email.misconfigured` (error level) and the email provider is
+  left unregistered — it is **never silently downgraded to `none`**, and never
+  treated as an ordinary delivery outcome. This prevents the dangerous state where an
+  operator sets `EMAIL_PROVIDER=ses`, believes email is on, and the app quietly sends
+  nothing. Same fail-closed principle as lead persistence; misconfiguration never
+  breaks lead capture (the registration builder catches and logs, never throws on the
+  persist path). A future adapter registers itself in `IMPLEMENTED_TRANSPORTS` and,
+  once supported, missing `EMAIL_FROM`/`EMAIL_TO` raises `EmailConfigError`.
+
+### Delivery result semantics (distinct states)
+`EmailSendResult = sent | temporary_failure | permanent_failure | not_configured`
+(typed; never thrown strings). Mapped to `NotificationResult`: sent → ok; temporary →
+retryable failure; permanent → non-retryable failure; not_configured → non-retryable.
+**`not_configured`** (a registered transport lacking what it needs at send time) is
+DISTINCT from the intentionally-DISABLED `none` state (no provider registered) and
+from an UNSUPPORTED/misconfigured provider (surfaced loudly at construction). These
+three are not collapsed.
+
+### Configuration (server-only; no new secrets)
+`lib/config/env.ts` adds `EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_TO` (validated only
+when a provider is selected — never required for `none`), and `EMAIL_REPLY_TO`
+(`disabled | lead-email`, default `disabled`). No `NEXT_PUBLIC` email config. **No
+real provider credential variables are added** (no `RESEND_API_KEY`, AWS/SMTP creds)
+because no SDK is implemented — they land with the adapter. Addresses/keys are never
+logged as values.
+
+### Timeouts (bounded; honest about cancellation)
+The provider races `transport.send()` against a bounded timer (default 10s) so a
+hanging transport can never hang a submission; a timeout returns a typed
+`temporary_failure`. **A `Promise.race` timeout does NOT cancel the underlying
+request** — a timed-out send could still complete (and, once a real transport exists,
+still deliver). The `EmailTransport` contract therefore also accepts an `AbortSignal`
+so a future SDK transport can cooperatively cancel where supported, and the provider
+aborts the signal on timeout. There is **no automatic retry** in this phase, so a
+timeout cannot trigger a second send.
+
+### Logging (PII-free)
+Events: `lead.notification.started`, `lead.notification.sent`,
+`lead.notification.failed` (with `channel`, `provider`, `attempt`, failure class,
+`correlationId`, opaque `leadId`). Misconfiguration is `lead.notification.email.
+misconfigured` (a configuration state — NOT a delivery `failed` event). Intentional
+`none` produces no email event at all. Never logged: lead email, name, phone,
+message, rendered HTML/text body, recipient addresses, or credentials.
+
+### Current durability limitation (accepted for 2D)
+`NotificationDelivery` stays separate from `Lead`; no notification field is added
+back to the `Lead` model, and deliveries are **not persisted durably** yet. Delivery
+is synchronous on the request path with no fire-and-forget promise. **A process crash
+after lead persistence but before email delivery can leave a lead with no email
+notification.** That gap is accepted for 2D and is exactly what **Phase 2E** closes
+with durable delivery/retry (bounded sync retry + a durable `pending` re-attempt in a
+`lead_notification_deliveries` table, upgrading to a queue/worker only if warranted).
+
+### Files (Phase 2D)
+`lib/leads/notification/email/{types,escape,content,factory,provider,registration}.ts`
++ `transports/fake.ts` (test-only) + their `*.test.ts`; email selectors in
+`lib/config/env.ts`; email provider registered in
+`lib/leads/notification/service.ts` (`buildDefaultNotificationProviders`).
+
+### What remains before real email can be activated
+Approve a vendor (SES vs Resend) with sending domain + DNS (SPF/DKIM/DMARC) +
+recipient inbox → add that transport adapter (its SDK + credential env vars) and
+register it in `IMPLEMENTED_TRANSPORTS` → set `EMAIL_PROVIDER`, `EMAIL_FROM`,
+`EMAIL_TO` (+ `EMAIL_REPLY_TO` if used) → verify send in staging. Until then email
+stays disabled (`none`) or fails loudly if a provider is selected without an adapter.
+
+### What remains for reliable persistent notification retries (Phase 2E)
+Persist `NotificationDelivery` (`pending`/`sent`/`failed` + attempts) so a crash
+between persist and send is recoverable; add a bounded synchronous retry plus a
+durable re-attempt driven by a scheduled task; add real transport cancellation via
+the `AbortSignal` seam; upgrade to a queue/worker only when volume or multiple
+channels require it.
