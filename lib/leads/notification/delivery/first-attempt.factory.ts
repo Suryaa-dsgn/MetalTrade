@@ -9,6 +9,8 @@ import {
   runEmailFirstAttempt,
   type ResolvedEmailAttempt,
 } from "@/lib/leads/notification/delivery/first-attempt"
+import type { SendableResolution } from "@/lib/leads/notification/delivery/drain"
+import { logger } from "@/lib/observability/logger"
 
 /*
   Backend Phase 2E-2 — server-only wiring for the durable first attempt. Resolves the
@@ -40,6 +42,32 @@ export function resolveEmailAttempt(): ResolvedEmailAttempt {
       to: settings.to,
       replyToLeadEmail: settings.replyTo === "lead-email",
     },
+  }
+}
+
+/**
+ * Which email provider can currently send, for the drain. Reuses `resolveEmailAttempt`
+ * (fail-loud). Disabled → empty (no work, no event). Misconfigured → empty + a loud
+ * `lead.notification.email.misconfigured` event, so pending rows are PRESERVED (not
+ * claimed, attempts untouched) until configuration is fixed.
+ */
+export function resolveSendableEmail(): SendableResolution {
+  const settings = getEmailSettings()
+  if (settings.provider === "none") {
+    return { sendableProviders: [], configFor: () => undefined }
+  }
+  const attempt = resolveEmailAttempt()
+  if (!attempt.ok) {
+    logger.error("lead.notification.email.misconfigured", {
+      provider: settings.provider,
+      reason: attempt.reason,
+    })
+    return { sendableProviders: [], configFor: () => undefined }
+  }
+  const provider = settings.provider
+  return {
+    sendableProviders: [provider],
+    configFor: (p) => (p === provider ? attempt.config : undefined),
   }
 }
 

@@ -50,3 +50,48 @@ describe("InMemoryLeadNotificationDeliveryRepository", () => {
     expect(repo.size()).toBe(0)
   })
 })
+
+describe("InMemoryLeadNotificationDeliveryRepository.claimDue (2E-3)", () => {
+  const NOW = new Date("2026-09-16T12:00:00.000Z")
+  const opts = (over: Record<string, unknown> = {}) => ({
+    batchSize: 10,
+    workerId: "w1",
+    leaseDurationMs: 60_000,
+    now: NOW,
+    sendableProviders: ["resend"],
+    ...over,
+  })
+
+  it("claims a due pending row and marks it processing/locked (fresh, not reclaimed)", async () => {
+    const repo = new InMemoryLeadNotificationDeliveryRepository()
+    await repo.createIntent(intent({ leadId: "L1", nextAttemptAt: "2026-09-16T11:00:00.000Z" }))
+    const claimed = await repo.claimDue(opts())
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0].reclaimed).toBe(false)
+    expect(claimed[0].status).toBe("processing")
+    expect(claimed[0].lockedBy).toBe("w1")
+  })
+
+  it("does not claim a future pending row", async () => {
+    const repo = new InMemoryLeadNotificationDeliveryRepository()
+    await repo.createIntent(intent({ leadId: "L1", nextAttemptAt: "2026-09-16T13:00:00.000Z" }))
+    expect(await repo.claimDue(opts())).toHaveLength(0)
+  })
+
+  it("reclaims an expired-lease processing row, skips an active one", async () => {
+    const repo = new InMemoryLeadNotificationDeliveryRepository()
+    await repo.createIntent(intent({ leadId: "L1", purpose: "internal_lead_alert", status: "processing", lockedAt: "2026-09-16T11:58:00.000Z" }))
+    await repo.createIntent(intent({ leadId: "L2", purpose: "internal_lead_alert", status: "processing", lockedAt: "2026-09-16T11:59:50.000Z" }))
+    const claimed = await repo.claimDue(opts())
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0].reclaimed).toBe(true)
+  })
+
+  it("respects batch size and claims nothing without sendable providers", async () => {
+    const repo = new InMemoryLeadNotificationDeliveryRepository()
+    await repo.createIntent(intent({ leadId: "L1", nextAttemptAt: "2026-09-16T11:00:00.000Z" }))
+    await repo.createIntent(intent({ leadId: "L2", nextAttemptAt: "2026-09-16T11:00:00.000Z" }))
+    expect(await repo.claimDue(opts({ batchSize: 1 }))).toHaveLength(1)
+    expect(await repo.claimDue(opts({ sendableProviders: [] }))).toHaveLength(0)
+  })
+})

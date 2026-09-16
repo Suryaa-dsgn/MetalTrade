@@ -1,6 +1,8 @@
 import type { SqlExecutor } from "@/lib/leads/db/executor"
 import type { LeadNotificationDelivery } from "@/lib/leads/notification/delivery/types"
 import type {
+  ClaimDueOptions,
+  ClaimedDelivery,
   CreateIntentResult,
   LeadNotificationDeliveryRepository,
 } from "@/lib/leads/notification/delivery/repository"
@@ -96,5 +98,48 @@ export class PostgresLeadNotificationDeliveryRepository
 
   async markFailed(id: string, at: string, errorClass: string): Promise<void> {
     await this.exec.query(MARK_FAILED_SQL, [id, at, errorClass])
+  }
+
+  async claimDue(options: ClaimDueOptions): Promise<ClaimedDelivery[]> {
+    const { batchSize, workerId, leaseDurationMs, now, sendableProviders } = options
+    if (sendableProviders.length === 0) return [] // nothing operable → claim nothing
+
+    const nowIso = now.toISOString()
+    const leaseCutoff = new Date(now.getTime() - leaseDurationMs).toISOString()
+    // Provider allow-list as parameters (from server config, not user input — still
+    // parameterized). Placeholders start at $5.
+    const providerPlaceholders = sendableProviders
+      .map((_, i) => `$${i + 5}`)
+      .join(",")
+
+    // A CTE selects + locks the eligible rows (SKIP LOCKED = concurrent drainers get
+    // disjoint rows) and captures prior status so the caller can distinguish a fresh
+    // claim from a crash-recovery reclaim. The UPDATE transitions them to processing.
+    // attempts is deliberately NOT touched (claiming is not a send).
+    const sql = `
+      WITH candidate AS (
+        SELECT id, status AS prev_status
+        FROM lead_notification_deliveries
+        WHERE provider IN (${providerPlaceholders})
+          AND (
+            (status = 'pending' AND next_attempt_at <= $1)
+            OR (status = 'processing' AND locked_at < $3)
+          )
+        ORDER BY next_attempt_at
+        FOR UPDATE SKIP LOCKED
+        LIMIT $4
+      )
+      UPDATE lead_notification_deliveries d
+      SET status = 'processing', locked_at = $1, locked_by = $2, updated_at = $1
+      FROM candidate
+      WHERE d.id = candidate.id
+      RETURNING d.*, candidate.prev_status`
+
+    const params = [nowIso, workerId, leaseCutoff, batchSize, ...sendableProviders]
+    const result = await this.exec.query(sql, params)
+    return result.rows.map((row) => ({
+      ...rowToDelivery(row),
+      reclaimed: String(row.prev_status) === "processing",
+    }))
   }
 }

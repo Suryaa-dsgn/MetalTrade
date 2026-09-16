@@ -617,6 +617,53 @@ real SDK).
 - **Logging:** `lead.notification.started` / `.sent` (+ providerMessageId) / `.failed`
   (+ failureClass) / `.retry.scheduled` (+ nextAttemptAt), all PII-free.
 
-**Still deferred (final drain slice):** `claimDue` + `FOR UPDATE SKIP LOCKED` + lease
-recovery, the scheduled drain endpoint, multi-attempt retry enforcement, and any
-queue/worker.
+### 2E-3 scope (implemented) — durable drain + crash recovery
+Reliable notification delivery is now COMPLETE at the application/infrastructure level.
+A host-agnostic drain recovers and delivers rows that are pending-and-due or
+processing-with-an-expired-lease, safely across multiple instances.
+
+- **`claimDue` (atomic):** `LeadNotificationDeliveryRepository.claimDue({ batchSize,
+  workerId, leaseDurationMs, now, sendableProviders })` returns claimed rows (each
+  flagged `reclaimed`). Postgres uses a CTE that `SELECT … FOR UPDATE SKIP LOCKED`
+  (concurrent drainers get disjoint rows) then transitions them to `processing` with
+  `locked_at`/`locked_by`. **Claiming never increments `attempts`** (claiming is not a
+  send). The in-memory repository models the same claim/lease semantics for tests.
+- **Due / expired rules:** pending is claimable when `next_attempt_at <= now`;
+  processing is reclaimable when `locked_at < now - leaseDuration` (crash recovery — no
+  startup reset job). Active leases are skipped.
+- **Claim only sendable providers:** the drain resolves currently-operable providers
+  first; a disabled or misconfigured provider yields an empty set (loud
+  `lead.notification.email.misconfigured` for misconfig), so pending rows are
+  PRESERVED, unclaimed, and `attempts` is not consumed.
+- **Constants:** `DEFAULT_BATCH_SIZE=10`, `DEFAULT_LEASE_MS=60_000` (comfortably >
+  the 10s send timeout), module constants (not env) until an operational need arises.
+- **Worker id:** opaque per-invocation `crypto.randomUUID()` — operational metadata
+  only, never host/user detail.
+- **Dispatcher (`drainNotificationDeliveries`, no raw SQL):** determine sendable →
+  claim a small batch → per row: load the lead via the internal `LeadReader.getById`
+  (the delivery table holds no PII), run the SAME attempt core as the first attempt
+  (`attemptEmailDelivery`, reusing the bounded send, capability handling, backoff,
+  transitions, and `delivery.id` as the idempotency key), and return a minimal summary
+  `{ claimed, sent, retryScheduled, failed }`. A missing lead is failed with
+  `lead_not_found` (defensive; FK+CASCADE should prevent it).
+- **MAX_ATTEMPTS=6:** a row at the cap is not sent (`lead.notification.exhausted`); a
+  retryable result that would exhaust the cap is failed instead of scheduling an
+  unreachable retry. Every handled outcome clears the lease (never stuck `processing`).
+- **Protected entry point:** `POST /api/internal/notifications/drain` — a THIN route
+  that authorizes a `Authorization: Bearer <NOTIFICATION_DRAIN_SECRET>` (constant-time
+  compare; missing/unconfigured/wrong → 401; secret server-only, never logged, never in
+  a query string, no `NEXT_PUBLIC`), mints a worker id, calls the drain, and returns
+  only operational counts. All logic lives in the handler/dispatcher.
+- **Observability (PII-free):** adds `lead.notification.claimed` / `.reclaimed` /
+  `.exhausted` / `.drain.completed` (with workerId + counts) to the existing
+  started/sent/failed/retry.scheduled events.
+- **Scheduler NOT wired:** the deployment platform is still undecided, so no Vercel
+  Cron / EventBridge / GitHub Actions is attached — only the protected, host-agnostic
+  endpoint exists. A platform scheduler is attached at deployment/handover.
+
+**Remaining before real email actually sends:** approve an email vendor and implement
+its `EmailTransport` adapter (SDK + credentials, `capabilities.idempotentSend`),
+register it in `IMPLEMENTED_TRANSPORTS`, set `EMAIL_PROVIDER`/`EMAIL_FROM`/`EMAIL_TO`,
+and attach a platform scheduler to the drain route. Until a vendor is wired, the whole
+durable path is exercised end-to-end in tests but produces no live email
+(fail-loud/preserved-pending when a provider is selected without an adapter).

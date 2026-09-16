@@ -5,6 +5,7 @@ import { sendWithTimeout } from "@/lib/leads/notification/email/send"
 import type { LeadNotificationDelivery } from "@/lib/leads/notification/delivery/types"
 import type { LeadNotificationDeliveryRepository } from "@/lib/leads/notification/delivery/repository"
 import {
+  MAX_ATTEMPTS,
   nextAttemptAt as computeNextAttemptAt,
   type BackoffOptions,
 } from "@/lib/leads/notification/delivery/backoff"
@@ -40,6 +41,13 @@ export type EmailAttemptConfig = {
   backoff?: BackoffOptions
 }
 
+/** The persisted result of one attempt — returned so the drain can count outcomes.
+ *  ("exhausted" is a terminal failure that hit MAX_ATTEMPTS.) */
+export type AttemptOutcome = "sent" | "retry" | "failed" | "exhausted"
+
+/** Observability context. `workerId` is set for drain attempts (opaque). */
+export type AttemptContext = { correlationId: string; workerId?: string }
+
 /** Resolution of the configured email transport for a delivery attempt, or a reason
  *  the provider cannot currently send (surfaced loudly; the intent stays pending). */
 export type ResolvedEmailAttempt =
@@ -49,10 +57,11 @@ export type ResolvedEmailAttempt =
 function baseEvent(
   lead: Lead,
   delivery: LeadNotificationDelivery,
-  ctx: { correlationId: string }
+  ctx: AttemptContext
 ) {
   return {
     correlationId: ctx.correlationId,
+    ...(ctx.workerId ? { workerId: ctx.workerId } : {}),
     leadId: lead.id,
     deliveryId: delivery.id,
     channel: delivery.channel,
@@ -71,12 +80,24 @@ export async function attemptEmailDelivery(
   delivery: LeadNotificationDelivery,
   repo: LeadNotificationDeliveryRepository,
   config: EmailAttemptConfig,
-  ctx: { correlationId: string }
-): Promise<void> {
+  ctx: AttemptContext
+): Promise<AttemptOutcome> {
   const nowFn = config.now ?? (() => new Date())
   const attempt = delivery.attempts + 1
   const at = nowFn().toISOString()
   const base = baseEvent(lead, delivery, ctx)
+
+  // Defensive cap check BEFORE sending: a row already at the cap is never sent again.
+  if (delivery.attempts >= MAX_ATTEMPTS) {
+    await repo.markFailed(delivery.id, at, "exhausted")
+    logger.warn("lead.notification.exhausted", {
+      ...base,
+      attempt: delivery.attempts,
+      status: "failed",
+      failureClass: "exhausted",
+    })
+    return "exhausted"
+  }
 
   logger.info("lead.notification.started", { ...base, attempt })
 
@@ -97,7 +118,7 @@ export async function attemptEmailDelivery(
       status: "sent",
       providerMessageId: result.providerMessageId,
     })
-    return
+    return "sent"
   }
 
   if (result.status === "permanent_failure" || result.status === "not_configured") {
@@ -110,7 +131,7 @@ export async function attemptEmailDelivery(
       status: "failed",
       failureClass,
     })
-    return
+    return "failed"
   }
 
   // temporary_failure — apply the capability-based ambiguity rule.
@@ -128,10 +149,23 @@ export async function attemptEmailDelivery(
       status: "failed",
       failureClass,
     })
-    return
+    return "failed"
   }
 
-  // Retryable: schedule the future re-attempt in DATA ONLY (no scheduler yet).
+  // Retryable — but if this attempt exhausts the cap, fail terminally instead of
+  // scheduling an unreachable retry.
+  if (attempt >= MAX_ATTEMPTS) {
+    await repo.markFailed(delivery.id, at, code)
+    logger.warn("lead.notification.exhausted", {
+      ...base,
+      attempt,
+      status: "failed",
+      failureClass: code,
+    })
+    return "exhausted"
+  }
+
+  // Schedule the future re-attempt in DATA ONLY (the drain will pick it up).
   const scheduledFor = computeNextAttemptAt(nowFn(), attempt, config.backoff)
   await repo.markRetry(delivery.id, at, code, scheduledFor)
   logger.info("lead.notification.retry.scheduled", {
@@ -141,6 +175,7 @@ export async function attemptEmailDelivery(
     failureClass: code,
     nextAttemptAt: scheduledFor,
   })
+  return "retry"
 }
 
 /**
@@ -154,7 +189,7 @@ export async function runEmailFirstAttempt(
   delivery: LeadNotificationDelivery,
   repo: LeadNotificationDeliveryRepository,
   resolved: ResolvedEmailAttempt,
-  ctx: { correlationId: string }
+  ctx: AttemptContext
 ): Promise<void> {
   if (!resolved.ok) {
     // "disabled" should not occur here (no intent is created when email is off), but
@@ -167,5 +202,5 @@ export async function runEmailFirstAttempt(
     }
     return // preserve pending; no attempt, no attempts increment
   }
-  await attemptEmailDelivery(lead, delivery, repo, resolved.config, ctx)
+  void (await attemptEmailDelivery(lead, delivery, repo, resolved.config, ctx))
 }

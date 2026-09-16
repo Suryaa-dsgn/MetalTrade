@@ -544,9 +544,13 @@ No Contact UI files. No CRM/admin/queue infra files.
   as data), capability-based ambiguity handling with the delivery id as the provider
   idempotency key, and email moved off the ephemeral seam onto the durable outbox.
   No scheduler/claiming/retry-loop.
-- **2E-3 — scheduled drain + claiming:** `claimDue` with `FOR UPDATE SKIP LOCKED` +
-  lease/crash recovery; the protected drain endpoint; concurrency + recovery tests;
-  wire the platform scheduler (host-dependent, minimal).
+- **2E-3 (done):** durable drain + crash recovery. `claimDue` with `FOR UPDATE SKIP
+  LOCKED` + lease/reclaim (claiming never increments attempts); the dispatcher reuses
+  the shared attempt core; `MAX_ATTEMPTS`/exhaustion enforced; internal `LeadReader`
+  for PII-free content rebuild; a protected `POST /api/internal/notifications/drain`
+  guarded by a constant-time bearer secret; claimed/reclaimed/exhausted/drain.completed
+  events. The platform scheduler is intentionally NOT wired (deployment undecided) —
+  only the host-agnostic endpoint exists.
 - **2E-4 — observability + retention + hardening:** full event set, `exhausted`/
   `reclaimed`, retention prune step, failure-matrix tests, docs.
 
@@ -568,4 +572,8 @@ gated for review — same protocol as 2A–2D.
 
 ---
 
-**Status:** design only. No code written. Awaiting approval to implement 2E-1.
+**Status:** implemented through 2E-3 (reliable notification delivery complete at the
+application/infrastructure level). Remaining before live email: a concrete
+`EmailTransport` vendor adapter (SDK + credentials) and attaching a platform scheduler
+to the protected drain route. 2E-4 (retention pruning + extra hardening) and Phase 2F
+(CRM/admin) remain out of scope here.

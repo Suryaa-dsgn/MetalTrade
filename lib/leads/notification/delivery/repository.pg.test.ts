@@ -140,6 +140,125 @@ describe("PostgresLeadNotificationDeliveryRepository.createIntent", () => {
   })
 })
 
+describe("PostgresLeadNotificationDeliveryRepository.claimDue", () => {
+  const NOW = new Date("2026-09-16T12:00:00.000Z")
+  const LEASE = 60_000
+  const claimOpts = (over: Record<string, unknown> = {}) => ({
+    batchSize: 10,
+    workerId: "worker-A",
+    leaseDurationMs: LEASE,
+    now: NOW,
+    sendableProviders: ["resend"],
+    ...over,
+  })
+
+  async function seed(over: Partial<LeadNotificationDelivery> = {}) {
+    const { lead: stored } = await leadRepo.createOrGet(lead())
+    const { delivery } = await deliveryRepo.createIntent(intent(stored.id, over))
+    return delivery
+  }
+  async function readRow(id: string) {
+    const r = await exec.query(
+      "SELECT * FROM lead_notification_deliveries WHERE id = $1",
+      [id]
+    )
+    return r.rows[0]
+  }
+
+  it("(1) claims a due pending row", async () => {
+    const d = await seed({ nextAttemptAt: "2026-09-16T11:59:00.000Z" })
+    const claimed = await deliveryRepo.claimDue(claimOpts())
+    expect(claimed.map((c) => c.id)).toContain(d.id)
+    expect(claimed[0].reclaimed).toBe(false)
+  })
+
+  it("(2) does not claim a future-scheduled pending row", async () => {
+    await seed({ nextAttemptAt: "2026-09-16T13:00:00.000Z" })
+    const claimed = await deliveryRepo.claimDue(claimOpts())
+    expect(claimed).toHaveLength(0)
+  })
+
+  it("(3) reclaims a processing row with an expired lease", async () => {
+    const d = await seed({
+      status: "processing",
+      lockedAt: "2026-09-16T11:58:00.000Z", // 2 min ago > 60s lease
+      lockedBy: "dead-worker",
+    })
+    const claimed = await deliveryRepo.claimDue(claimOpts())
+    expect(claimed.map((c) => c.id)).toContain(d.id)
+    expect(claimed[0].reclaimed).toBe(true)
+  })
+
+  it("(4) skips a processing row with an active lease", async () => {
+    await seed({
+      status: "processing",
+      lockedAt: "2026-09-16T11:59:45.000Z", // 15s ago < 60s lease
+      lockedBy: "live-worker",
+    })
+    const claimed = await deliveryRepo.claimDue(claimOpts())
+    expect(claimed).toHaveLength(0)
+  })
+
+  it("(5) sets processing + locked_at + locked_by on claim (attempts untouched)", async () => {
+    const d = await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    await deliveryRepo.claimDue(claimOpts({ workerId: "worker-XYZ" }))
+    const row = await readRow(d.id)
+    expect(row.status).toBe("processing")
+    expect(new Date(String(row.locked_at)).toISOString()).toBe(NOW.toISOString())
+    expect(row.locked_by).toBe("worker-XYZ")
+    expect(Number(row.attempts)).toBe(0) // claiming is NOT a send
+  })
+
+  it("(6) a terminal outcome clears the lease fields", async () => {
+    const d = await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    await deliveryRepo.claimDue(claimOpts())
+    await deliveryRepo.markSent(d.id, NOW.toISOString(), "msg-1")
+    const row = await readRow(d.id)
+    expect(row.status).toBe("sent")
+    expect(row.locked_at).toBeNull()
+    expect(row.locked_by).toBeNull()
+  })
+
+  it("(7) respects the batch size", async () => {
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    const claimed = await deliveryRepo.claimDue(claimOpts({ batchSize: 2 }))
+    expect(claimed).toHaveLength(2)
+  })
+
+  it("(8) orders by next_attempt_at (earliest first)", async () => {
+    const later = await seed({ nextAttemptAt: "2026-09-16T11:30:00.000Z" })
+    const earlier = await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    const claimed = await deliveryRepo.claimDue(claimOpts({ batchSize: 1 }))
+    expect(claimed[0].id).toBe(earlier.id)
+    expect(claimed[0].id).not.toBe(later.id)
+  })
+
+  it("(9) two sequential claimers receive disjoint rows", async () => {
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    const a = await deliveryRepo.claimDue(claimOpts({ batchSize: 1, workerId: "A" }))
+    const b = await deliveryRepo.claimDue(claimOpts({ batchSize: 1, workerId: "B" }))
+    expect(a).toHaveLength(1)
+    expect(b).toHaveLength(1)
+    expect(a[0].id).not.toBe(b[0].id) // B skips A's claimed (active-lease) row
+  })
+
+  it("(14) claims nothing when there are no sendable providers", async () => {
+    const d = await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z" })
+    const claimed = await deliveryRepo.claimDue(claimOpts({ sendableProviders: [] }))
+    expect(claimed).toHaveLength(0)
+    expect(Number((await readRow(d.id)).attempts)).toBe(0)
+  })
+
+  it("only claims rows whose provider is sendable", async () => {
+    await seed({ nextAttemptAt: "2026-09-16T11:00:00.000Z", provider: "resend" })
+    const claimed = await deliveryRepo.claimDue(claimOpts({ sendableProviders: ["ses"] }))
+    expect(claimed).toHaveLength(0) // provider mismatch
+  })
+})
+
 describe("PostgresLeadNotificationDeliveryRepository — state transitions", () => {
   async function seedIntent() {
     const { lead: stored } = await leadRepo.createOrGet(lead())

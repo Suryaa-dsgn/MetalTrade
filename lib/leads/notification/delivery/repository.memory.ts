@@ -1,5 +1,7 @@
 import type { LeadNotificationDelivery } from "@/lib/leads/notification/delivery/types"
 import type {
+  ClaimDueOptions,
+  ClaimedDelivery,
   CreateIntentResult,
   LeadNotificationDeliveryRepository,
 } from "@/lib/leads/notification/delivery/repository"
@@ -84,6 +86,41 @@ export class InMemoryLeadNotificationDeliveryRepository
       d.lockedBy = undefined
       d.updatedAt = at
     })
+  }
+
+  async claimDue(options: ClaimDueOptions): Promise<ClaimedDelivery[]> {
+    const { batchSize, workerId, leaseDurationMs, now, sendableProviders } = options
+    if (sendableProviders.length === 0) return []
+
+    const nowMs = now.getTime()
+    const nowIso = now.toISOString()
+    const leaseCutoffMs = nowMs - leaseDurationMs
+    const sendable = new Set(sendableProviders)
+
+    // --- atomic critical section (synchronous claim + transition) ---
+    const eligible = [...this.byIdentity.values()].filter((d) => {
+      if (!sendable.has(d.provider)) return false
+      if (d.status === "pending") return new Date(d.nextAttemptAt).getTime() <= nowMs
+      if (d.status === "processing") {
+        return d.lockedAt !== undefined && new Date(d.lockedAt).getTime() < leaseCutoffMs
+      }
+      return false
+    })
+    eligible.sort(
+      (a, b) => new Date(a.nextAttemptAt).getTime() - new Date(b.nextAttemptAt).getTime()
+    )
+
+    const claimed: ClaimedDelivery[] = []
+    for (const d of eligible.slice(0, batchSize)) {
+      const reclaimed = d.status === "processing"
+      d.status = "processing"
+      d.lockedAt = nowIso
+      d.lockedBy = workerId
+      d.updatedAt = nowIso
+      claimed.push({ ...d, reclaimed })
+    }
+    return claimed
+    // --- end critical section ---
   }
 
   /** Test/ops helper — number of stored delivery intents. */

@@ -21,6 +21,20 @@ export type CreateIntentResult = {
   delivery: LeadNotificationDelivery
 }
 
+/** A claimed row plus whether it was RECLAIMED from an expired `processing` lease
+ *  (crash recovery) vs a fresh `pending` claim — for the claimed/reclaimed events. */
+export type ClaimedDelivery = LeadNotificationDelivery & { reclaimed: boolean }
+
+export type ClaimDueOptions = {
+  batchSize: number
+  workerId: string
+  /** Lease length; a `processing` row older than this is reclaimable. */
+  leaseDurationMs: number
+  now: Date
+  /** Only claim rows whose provider is currently able to send. Empty ⇒ claim none. */
+  sendableProviders: string[]
+}
+
 export interface LeadNotificationDeliveryRepository {
   /** Atomic create-or-return-existing keyed by (lead, channel, purpose). Runs inside
    *  the lead transaction (transactional outbox). */
@@ -43,4 +57,10 @@ export interface LeadNotificationDeliveryRepository {
   /** Terminal failure: status→failed, attempts+1, last_attempt_at=at,
    *  last_error_class set, lock fields cleared. No retry scheduled. */
   markFailed(id: string, at: string, errorClass: string): Promise<void>
+
+  /** Atomically claim a batch of due `pending` rows and expired-lease `processing`
+   *  rows (crash recovery), transitioning them to `processing` with the lease set.
+   *  Does NOT increment attempts (claiming is not a send). Concurrent callers get
+   *  DISJOINT rows (Postgres: FOR UPDATE SKIP LOCKED). */
+  claimDue(options: ClaimDueOptions): Promise<ClaimedDelivery[]>
 }

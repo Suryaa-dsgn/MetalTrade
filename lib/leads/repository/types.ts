@@ -41,3 +41,10 @@ export interface LeadRepository {
    *  different lead; throws on any other persistence failure. */
   createOrGet(lead: Lead): Promise<CreateOrGetResult>
 }
+
+/** Minimal internal read port (Backend Phase 2E-3). Used by the notification drain to
+ *  rebuild email content from the durable lead (the delivery table holds no PII). NOT
+ *  an admin listing/search API — that stays a separate future interface. */
+export interface LeadReader {
+  getById(id: string): Promise<Lead | null>
+}
