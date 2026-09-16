@@ -2,6 +2,7 @@ import type { Lead } from "@/lib/leads/types"
 import {
   LeadReferenceCollisionError,
   type CreateOrGetResult,
+  type LeadReader,
   type LeadRepository,
 } from "@/lib/leads/repository/types"
 
@@ -13,7 +14,7 @@ import {
   JavaScript's single-threaded model — the same create-or-return-existing semantics
   a UNIQUE(submission_token) constraint will enforce in Postgres.
 */
-export class InMemoryLeadRepository implements LeadRepository {
+export class InMemoryLeadRepository implements LeadRepository, LeadReader {
   /** Dev/test only — data does not survive a restart or span instances. */
   readonly durability = "ephemeral" as const
   private readonly byToken = new Map<string, Lead>()
@@ -34,8 +35,28 @@ export class InMemoryLeadRepository implements LeadRepository {
     // --- end critical section ---
   }
 
+  /** Internal read (LeadReader) — used by the notification drain. */
+  async getById(id: string): Promise<Lead | null> {
+    for (const lead of this.byToken.values()) {
+      if (lead.id === id) return lead
+    }
+    return null
+  }
+
   /** Test/ops helper — number of stored leads. */
   size(): number {
     return this.byToken.size
+  }
+
+  /** Opaque snapshot for Unit-of-Work rollback (Backend Phase 2E-1). */
+  snapshot(): { byToken: Map<string, Lead>; references: Set<string> } {
+    return { byToken: new Map(this.byToken), references: new Set(this.references) }
+  }
+
+  restore(snapshot: { byToken: Map<string, Lead>; references: Set<string> }): void {
+    this.byToken.clear()
+    for (const [k, v] of snapshot.byToken) this.byToken.set(k, v)
+    this.references.clear()
+    for (const r of snapshot.references) this.references.add(r)
   }
 }

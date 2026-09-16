@@ -521,8 +521,226 @@ register it in `IMPLEMENTED_TRANSPORTS` → set `EMAIL_PROVIDER`, `EMAIL_FROM`,
 stays disabled (`none`) or fails loudly if a provider is selected without an adapter.
 
 ### What remains for reliable persistent notification retries (Phase 2E)
-Persist `NotificationDelivery` (`pending`/`sent`/`failed` + attempts) so a crash
-between persist and send is recoverable; add a bounded synchronous retry plus a
-durable re-attempt driven by a scheduled task; add real transport cancellation via
-the `AbortSignal` seam; upgrade to a queue/worker only when volume or multiple
-channels require it.
+Persist `NotificationDelivery` (`pending`/`processing`/`sent`/`failed` + attempts) so a
+crash between persist and send is recoverable; add bounded retry + backoff plus a
+durable scheduled drain with safe row claiming; add real transport cancellation via the
+`AbortSignal` seam; upgrade to a queue/worker only when volume or multiple channels
+require it. Full design: `docs/phase-2e-durable-notification-delivery-design.md`.
+
+---
+
+## 22. Phase 2E — durable notification delivery (design; 2E-1 implemented)
+
+Full design and rationale live in
+`docs/phase-2e-durable-notification-delivery-design.md`. The load-bearing decisions,
+recorded here as canon:
+
+- **Transactional outbox, truly atomic.** The delivery INTENT row is written in the
+  **same Postgres transaction** as the lead (`BEGIN` createOrGet + createIntent
+  `COMMIT`; `ROLLBACK` if either fails) — never "lead commit, then intent insert". The
+  service orchestrates via a driver-agnostic `SqlExecutor.transaction(...)` Unit of
+  Work and holds NO raw SQL. Memory/PGlite model the same atomic semantics.
+- **Delivery identity = lead + channel + PURPOSE.** A dedicated
+  `lead_notification_deliveries` table with `UNIQUE (lead_id, channel, purpose)` (NOT
+  `(lead_id, channel)`), so a lead may have several notifications on one channel over
+  time. Purpose `internal_lead_alert` is the only one in 2E;
+  `customer_acknowledgement` / `assignment_alert` are future (not built). Intent
+  creation is idempotent via `ON CONFLICT (lead_id, channel, purpose) DO NOTHING`.
+- **System of record unchanged; success still gated only on durable lead persistence.**
+  Notification never invalidates an accepted lead; notification state never returns to
+  the `Lead` entity.
+- **Provider idempotency is capability-based, never assumed.** `EmailTransport` gains
+  `capabilities.idempotentSend`. An ambiguous timeout is auto-retried (with the stable
+  delivery-id key) ONLY when `idempotentSend=true`; otherwise it is classified for
+  operator recovery, not blindly retried. AWS SES `SendEmail` is not assumed
+  idempotent; a Resend-style key-enforcing transport may be.
+- **Disabled vs misconfigured.** `EMAIL_PROVIDER=none` → NO intent row created. A real
+  provider that is temporarily unusable/misconfigured → the `pending` intent is
+  PRESERVED (never discarded) for the durable drain to process once fixed; a
+  configuration problem is **not** counted as a delivery attempt.
+- **Claim only sendable deliveries.** Because claiming increments `attempts`, the drain
+  must not claim rows whose provider is currently unavailable/misconfigured — so
+  `attempts` always counts real delivery attempts.
+- **PII stays only in `leads`.** The delivery row holds no PII (content is rebuilt at
+  send time); `ON DELETE CASCADE` ties deliveries to their lead for erasure/retention.
+- **No new infra.** Postgres-as-queue via `FOR UPDATE SKIP LOCKED` + a scheduled drain;
+  no Redis/SQS/worker until a concrete throughput/fan-out/SLA signal appears.
+
+### Persistent NotificationDelivery schema (0002)
+`lead_notification_deliveries`: `id UUID PK`, `lead_id UUID NOT NULL` (FK →
+`leads(id) ON DELETE CASCADE`), `channel`, `purpose`, `provider`,
+`status` (`pending`/`processing`/`sent`/`failed`, CHECK), `attempts INT DEFAULT 0`,
+`next_attempt_at`, `last_attempt_at`, `last_error_class`, `provider_message_id`,
+`locked_at`, `locked_by`, `created_at`, `updated_at`. `UNIQUE (lead_id, channel,
+purpose)`. Partial indexes: `(next_attempt_at) WHERE status='pending'` and
+`(locked_at) WHERE status='processing'`, plus `(lead_id)`. NO PII columns.
+
+### 2E-1 scope (implemented)
+Migration `0002`; persistent delivery types + repository port + Postgres/memory impls
++ mapping; the `SqlExecutor.transaction` Unit of Work; the atomic lead + intent
+transaction in the service; intent idempotency; PII-free observability. **Not yet:**
+retry/backoff, claiming, scheduler/drain, provider SDK, real-send changes, retention,
+CRM, admin, queue. The Phase 2D best-effort first-attempt path is unchanged.
+
+### 2E-2 scope (implemented) — first-attempt outcome persisted
+The persisted `pending` intent now drives a bounded FIRST send whose OUTCOME is
+written back onto the delivery row. Scope is strictly `pending → attempt → persist`
+(no scheduler, cron, drain, claiming, lease, retry loop, queue, worker, CRM, admin, or
+real SDK).
+
+- **Transitions (explicit, no generic update):** `markSent` (status→sent,
+  provider_message_id, error cleared), `markRetry` (status→pending, `next_attempt_at`
+  from backoff — DATA ONLY, no scheduler), `markFailed` (status→failed). Each
+  increments `attempts` exactly once. No `processing` state is used in this slice
+  (introduced with claiming/lease in the drain slice), so a handled outcome can never
+  leave a row stuck.
+- **Attempt accounting:** `attempts` counts REAL provider sends only. Disabled
+  (`EMAIL_PROVIDER=none` → no intent), misconfigured/unsupported provider, and intent
+  creation NEVER increment it — a misconfiguration preserves the `pending` intent, emits
+  a loud `lead.notification.email.misconfigured`, and makes no attempt, so the row is
+  processable once configuration is fixed.
+- **Capability-based ambiguity (timeout / exception):** the send races a bounded timer
+  (`sendWithTimeout`, shared with the 2D provider). An ambiguous outcome is auto-retried
+  (status→pending, backoff) ONLY when `transport.capabilities.idempotentSend === true`,
+  reusing the stable delivery `id` as the provider idempotency key; otherwise it is
+  marked `failed` with `ambiguous_*` for operator recovery. SES-style transports are
+  not assumed idempotent.
+- **Success boundary unchanged:** the attempt runs post-commit and is awaited (it may
+  extend request latency) but is best-effort — a sent/failed/timed-out outcome never
+  changes an already-successful submission. No detached promise.
+- **Email moved off the ephemeral seam:** `buildDefaultNotificationProviders` now
+  returns only the `log` heartbeat; email is delivered durably via the outbox, so there
+  is no double send.
+- **Backoff:** pure `backoff.ts` — exponential, full jitter, cap 1h, `MAX_ATTEMPTS=6`
+  (the multi-attempt enforcement belongs to the drain slice; 2E-2 only records the next
+  time as data).
+- **Logging:** `lead.notification.started` / `.sent` (+ providerMessageId) / `.failed`
+  (+ failureClass) / `.retry.scheduled` (+ nextAttemptAt), all PII-free.
+
+### 2E-3 scope (implemented) — durable drain + crash recovery
+Reliable notification delivery is now COMPLETE at the application/infrastructure level.
+A host-agnostic drain recovers and delivers rows that are pending-and-due or
+processing-with-an-expired-lease, safely across multiple instances.
+
+- **`claimDue` (atomic):** `LeadNotificationDeliveryRepository.claimDue({ batchSize,
+  workerId, leaseDurationMs, now, sendableProviders })` returns claimed rows (each
+  flagged `reclaimed`). Postgres uses a CTE that `SELECT … FOR UPDATE SKIP LOCKED`
+  (concurrent drainers get disjoint rows) then transitions them to `processing` with
+  `locked_at`/`locked_by`. **Claiming never increments `attempts`** (claiming is not a
+  send). The in-memory repository models the same claim/lease semantics for tests.
+- **Due / expired rules:** pending is claimable when `next_attempt_at <= now`;
+  processing is reclaimable when `locked_at < now - leaseDuration` (crash recovery — no
+  startup reset job). Active leases are skipped.
+- **Claim only sendable providers:** the drain resolves currently-operable providers
+  first; a disabled or misconfigured provider yields an empty set (loud
+  `lead.notification.email.misconfigured` for misconfig), so pending rows are
+  PRESERVED, unclaimed, and `attempts` is not consumed.
+- **Constants:** `DEFAULT_BATCH_SIZE=10`, `DEFAULT_LEASE_MS=60_000` (comfortably >
+  the 10s send timeout), module constants (not env) until an operational need arises.
+- **Worker id:** opaque per-invocation `crypto.randomUUID()` — operational metadata
+  only, never host/user detail.
+- **Dispatcher (`drainNotificationDeliveries`, no raw SQL):** determine sendable →
+  claim a small batch → per row: load the lead via the internal `LeadReader.getById`
+  (the delivery table holds no PII), run the SAME attempt core as the first attempt
+  (`attemptEmailDelivery`, reusing the bounded send, capability handling, backoff,
+  transitions, and `delivery.id` as the idempotency key), and return a minimal summary
+  `{ claimed, sent, retryScheduled, failed }`. A missing lead is failed with
+  `lead_not_found` (defensive; FK+CASCADE should prevent it).
+- **MAX_ATTEMPTS=6:** a row at the cap is not sent (`lead.notification.exhausted`); a
+  retryable result that would exhaust the cap is failed instead of scheduling an
+  unreachable retry. Every handled outcome clears the lease (never stuck `processing`).
+- **Protected entry point:** `POST /api/internal/notifications/drain` — a THIN route
+  that authorizes a `Authorization: Bearer <NOTIFICATION_DRAIN_SECRET>` (constant-time
+  compare; missing/unconfigured/wrong → 401; secret server-only, never logged, never in
+  a query string, no `NEXT_PUBLIC`), mints a worker id, calls the drain, and returns
+  only operational counts. All logic lives in the handler/dispatcher.
+- **Observability (PII-free):** adds `lead.notification.claimed` / `.reclaimed` /
+  `.exhausted` / `.drain.completed` (with workerId + counts) to the existing
+  started/sent/failed/retry.scheduled events.
+- **Scheduler NOT wired:** the deployment platform is still undecided, so no Vercel
+  Cron / EventBridge / GitHub Actions is attached — only the protected, host-agnostic
+  endpoint exists. A platform scheduler is attached at deployment/handover.
+
+**Remaining before real email actually sends:** approve an email vendor and implement
+its `EmailTransport` adapter (SDK + credentials, `capabilities.idempotentSend`),
+register it in `IMPLEMENTED_TRANSPORTS`, set `EMAIL_PROVIDER`/`EMAIL_FROM`/`EMAIL_TO`,
+and attach a platform scheduler to the drain route. (Resend is now that adapter — §23.)
+
+---
+
+## 23. Real email provider — Resend (implemented; dev/staging)
+
+The first concrete `EmailTransport` is **Resend** (`resend` SDK, v6.28.1). It plugs
+into the EXISTING architecture — `EmailNotificationProvider` → `ResendEmailTransport`
+→ Resend API — with NO second pipeline. The provider stays replaceable: anything
+implementing `EmailTransport` (a future SES adapter, etc.) can take its place behind
+the same seam.
+
+### Transport
+- `lib/leads/notification/email/transports/resend.ts` — `createResendTransport(apiKey,
+  client?)`. Knows only `EmailMessage` + `EmailSendOptions` (never a `Lead`).
+  `capabilities.idempotentSend = true`. The optional `client` lets tests inject a fake
+  `resend.emails` (the SDK is mocked in CI — no live account needed).
+- **Idempotency:** `EmailSendOptions.idempotencyKey` (the stable `delivery.id`) is
+  forwarded to Resend's `emails.send(payload, { idempotencyKey })` (sent as the
+  `Idempotency-Key` header). Same key on every retry for a logical delivery — no new
+  scheme.
+- **providerMessageId:** on success the Resend email id (`data.id`) is returned as
+  `providerMessageId` and persisted by `markSent`.
+- **Result mapping:** `data.id` → `sent`; a Resend error → `temporary_failure` for
+  transient/capacity codes (`rate_limit_exceeded`, `*_quota_exceeded`,
+  `application_error`, `internal_server_error`, `concurrent_idempotent_requests`, or a
+  5xx/429 status) and `permanent_failure` otherwise (validation, auth, bad address,
+  not-found …). Only the short Resend error-code NAME is used as the classification —
+  **never the raw provider message/body**. Neither data nor error → transient
+  `malformed_response`. A thrown network error is normalized to `transport_exception`
+  by `sendWithTimeout`.
+- **Timeout / cancellation:** reuses `sendWithTimeout` (no new timeout path). The
+  Resend SDK does not accept an `AbortSignal`, so a timed-out request is not truly
+  cancelled — the bound only caps how long a submission waits; provider idempotency
+  keeps a later retry safe. Documented limitation, not worked around.
+
+### Registration + fail-early
+`createEmailTransport` (`factory.ts`) now builds Resend for `EMAIL_PROVIDER=resend`,
+reading server-only `RESEND_API_KEY`; a missing key throws `EmailConfigError`
+(fail loud). `ses` still throws `UnsupportedEmailProviderError`. `none` registers no
+transport. Missing `EMAIL_FROM`/`EMAIL_TO` under a selected provider also fails loudly
+(surfaced as `lead.notification.email.misconfigured`, pending rows preserved, no
+attempt consumed). A misconfiguration NEVER destroys an accepted lead.
+
+### Configuration (server-only)
+`EMAIL_PROVIDER=resend`, `RESEND_API_KEY` (secret — never logged / client-exposed /
+returned from a route / `NEXT_PUBLIC`), `EMAIL_FROM`, `EMAIL_TO`, `EMAIL_REPLY_TO`
+(`lead-email` puts the lead's validated email in Reply-To only; never From/To). All
+addresses/keys are environment configuration — nothing hard-coded. `EMAIL_PROVIDER=none`
+remains the safe default.
+
+### Domain verification (two testing modes)
+- **A — initial Resend testing:** use a Resend sandbox/verified test sender the current
+  account allows as `EMAIL_FROM`, and a developer/manager inbox as `EMAIL_TO`.
+- **B — production/domain testing:** after the client grants DNS access and the OEML
+  sending domain is verified in Resend. This requires DNS records: **SPF**, **DKIM**
+  (Resend-provided), and a recommended **DMARC** policy. This repo makes NO DNS changes
+  automatically.
+
+### Safe test send
+`npm run email:test` (`scripts/email-test.mjs`) sends ONE clearly-labeled connectivity
+test through Resend using the configured environment. It refuses `NODE_ENV=production`,
+takes the recipient from `EMAIL_TO` (no arbitrary/public recipient input), never prints
+`RESEND_API_KEY`, and prints only the outcome (`providerMessageId` or an error code).
+It is a credential/domain check — the live lead flow sends via the app transport, not
+this script. There is no public email-testing endpoint. Provide env in the shell or via
+`node --env-file=.env.local scripts/email-test.mjs`.
+
+### Client handover / ownership
+For production the **client should own the Resend account/project**. The development
+team uses delegated access or a production API key supplied via secrets. Any developer
+key used for dev/staging must be **rotated at handover**. Do not tie production
+permanently to a developer's personal Resend account. The transport seam means
+switching accounts (or vendors) is a config/adapter change, not a code rewrite.
+
+### Still gated on approval / infra
+A **platform scheduler** for the drain route is still not wired (deployment undecided),
+and durable Postgres lead storage still needs provisioning (§ activation checklist).
+Live email requires a real `RESEND_API_KEY` + verified sender; until then the pipeline
+is exercised end-to-end with a mocked SDK in tests and produces no live mail.

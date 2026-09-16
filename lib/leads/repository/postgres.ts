@@ -2,6 +2,7 @@ import type { Lead } from "@/lib/leads/types"
 import {
   LeadReferenceCollisionError,
   type CreateOrGetResult,
+  type LeadReader,
   type LeadRepository,
 } from "@/lib/leads/repository/types"
 import {
@@ -38,10 +39,17 @@ const INSERT_SQL = `
 const SELECT_BY_TOKEN_SQL =
   "SELECT * FROM leads WHERE submission_token = $1"
 
-export class PostgresLeadRepository implements LeadRepository {
+const SELECT_BY_ID_SQL = "SELECT * FROM leads WHERE id = $1"
+
+export class PostgresLeadRepository implements LeadRepository, LeadReader {
   readonly durability = "durable" as const
 
   constructor(private readonly exec: SqlExecutor) {}
+
+  async getById(id: string): Promise<Lead | null> {
+    const result = await this.exec.query(SELECT_BY_ID_SQL, [id])
+    return result.rows.length === 1 ? rowToLead(result.rows[0]) : null
+  }
 
   async createOrGet(lead: Lead): Promise<CreateOrGetResult> {
     try {

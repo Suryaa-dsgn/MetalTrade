@@ -8,6 +8,11 @@ import {
   EmailConfigError,
   UnsupportedEmailProviderError,
 } from "@/lib/leads/notification/email/factory"
+import {
+  INTERNAL_LEAD_ALERT,
+  type NotificationPurpose,
+  type PersistedNotificationChannel,
+} from "@/lib/leads/notification/delivery/types"
 
 /*
   Wiring between validated config and the notification provider set (Backend Phase
@@ -77,6 +82,27 @@ export function resolveEmailNotificationProvider(
 /** The reason class for a loud misconfiguration log (never PII, never addresses). */
 export function emailMisconfigReason(err: unknown): string {
   if (err instanceof UnsupportedEmailProviderError) return "unsupported_provider"
-  if (err instanceof EmailConfigError) return "missing_addresses"
+  if (err instanceof EmailConfigError) return "missing_configuration"
   return "unknown"
+}
+
+export type EmailIntentDescriptor = {
+  channel: PersistedNotificationChannel
+  purpose: NotificationPurpose
+  provider: string
+}
+
+/**
+ * The notification INTENT to persist for a newly created lead, derived from config
+ * (Backend Phase 2E-1). Returns `null` when email is intentionally disabled
+ * (`EMAIL_PROVIDER=none`) → NO intent row is created. When a real provider is
+ * selected the business intends an email, so a `pending` intent is persisted even if
+ * that provider is not yet sendable (misconfigured); the durable drain processes it
+ * once configuration is fixed. This is provider-name resolution only — it performs no
+ * send and does not check adapter availability.
+ */
+export function defaultEmailIntent(): EmailIntentDescriptor | null {
+  const settings = getEmailSettings()
+  if (settings.provider === "none") return null
+  return { channel: "email", purpose: INTERNAL_LEAD_ALERT, provider: settings.provider }
 }

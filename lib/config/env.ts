@@ -99,6 +99,14 @@ const schema = z.object({
   // Reply-to behaviour. "lead-email" sets reply-to to the lead's ALREADY-VALIDATED
   // email (a structured field, never a manually built header); "disabled" omits it.
   emailReplyTo: selector("EMAIL_REPLY_TO", ["disabled", "lead-email"], "disabled"),
+  // Shared secret guarding the internal notification-drain endpoint (Backend Phase
+  // 2E-3). Server-only; never logged, never client-exposed, never in a query string.
+  // When unset, the drain endpoint rejects every request (fail closed).
+  notificationDrainSecret: secret,
+  // Resend API key — required when EMAIL_PROVIDER=resend. Server-only secret; never
+  // logged, never client-exposed, never returned from a route. When missing under a
+  // resend selection, the transport factory fails loudly (no silent fallback).
+  resendApiKey: secret,
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
@@ -157,6 +165,8 @@ export const serverConfig: ServerConfig = applyProductionHardening(
     emailFrom: process.env.EMAIL_FROM,
     emailTo: process.env.EMAIL_TO,
     emailReplyTo: process.env.EMAIL_REPLY_TO,
+    notificationDrainSecret: process.env.NOTIFICATION_DRAIN_SECRET,
+    resendApiKey: process.env.RESEND_API_KEY,
     metalPriceApiKey: process.env.METALPRICE_API_KEY,
     metalsDevApiKey: process.env.METALS_DEV_API_KEY,
     eiaApiKey: process.env.EIA_API_KEY,

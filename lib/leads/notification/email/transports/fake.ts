@@ -26,19 +26,27 @@ export type FakeTransportOptions = {
   /** If set, `send` never resolves on its own — it resolves only when the provided
    *  AbortSignal aborts. Used to test the timeout boundary deterministically. */
   hangUntilAborted?: boolean
+  /** Provider idempotency capability (default false — no assumption). */
+  idempotentSend?: boolean
 }
 
 export class FakeEmailTransport implements EmailTransport {
   readonly name = "fake"
+  readonly capabilities: EmailTransport["capabilities"]
   readonly sent: EmailMessage[] = []
+  /** Records the idempotency key seen on each send (for assertions). */
+  readonly idempotencyKeys: (string | undefined)[] = []
 
-  constructor(private readonly options: FakeTransportOptions = {}) {}
+  constructor(private readonly options: FakeTransportOptions = {}) {
+    this.capabilities = { idempotentSend: options.idempotentSend ?? false }
+  }
 
   async send(
     message: EmailMessage,
     options?: EmailSendOptions
   ): Promise<EmailSendResult> {
     this.sent.push(message)
+    this.idempotencyKeys.push(options?.idempotencyKey)
 
     if (this.options.throwError !== undefined) throw this.options.throwError
 

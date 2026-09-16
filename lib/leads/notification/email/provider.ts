@@ -8,6 +8,7 @@ import type {
   EmailTransport,
 } from "@/lib/leads/notification/email/types"
 import { buildLeadEmail } from "@/lib/leads/notification/email/content"
+import { sendWithTimeout } from "@/lib/leads/notification/email/send"
 
 /*
   EmailNotificationProvider (Backend Phase 2D). The layer that KNOWS the Lead:
@@ -82,32 +83,8 @@ export function createEmailNotificationProvider(
         replyTo,
       })
 
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
-      // A bounded race: whichever settles first wins. The timeout path returns a
-      // typed temporary_failure and aborts the signal (best-effort cancellation).
-      const timeout = new Promise<EmailSendResult>((resolve) => {
-        controller.signal.addEventListener(
-          "abort",
-          () => resolve({ status: "temporary_failure", code: "timeout" }),
-          { once: true }
-        )
-      })
-
-      try {
-        const result = await Promise.race([
-          deps.transport.send(message, { signal: controller.signal }),
-          timeout,
-        ])
-        return toNotificationResult(result)
-      } catch {
-        // Translate any thrown provider/network exception into a safe typed
-        // failure at the adapter boundary — never leak the raw error (it may
-        // carry PII or endpoint detail) and never throw to the service.
-        return { ok: false, code: "transport_exception", retryable: true }
-      } finally {
-        clearTimeout(timer)
-      }
+      const result = await sendWithTimeout(deps.transport, message, { timeoutMs })
+      return toNotificationResult(result)
     },
   }
 }

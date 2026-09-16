@@ -46,10 +46,22 @@ export type EmailSendResult =
 
 /** Optional per-send controls. `signal` lets a future real transport cooperate with
  *  cancellation where its SDK supports an AbortSignal; a plain Promise.race timeout
- *  around send() does NOT cancel the underlying request (see EmailNotification
- *  provider). Kept minimal deliberately — not overengineered. */
+ *  around send() does NOT cancel the underlying request (see sendWithTimeout).
+ *  `idempotencyKey` (the stable delivery id) lets a provider that supports it suppress
+ *  a duplicate on an ambiguous retry — passed as a STRUCTURED option only; the
+ *  transport decides how/whether to map it (never a hand-built header). Kept minimal
+ *  deliberately — not overengineered. */
 export type EmailSendOptions = {
   signal?: AbortSignal
+  idempotencyKey?: string
+}
+
+/** What a transport can guarantee. `idempotentSend` = the provider enforces
+ *  idempotency on the client-supplied key, so an ambiguous (timeout) send is safe to
+ *  retry with the same key. Never assumed true — each transport declares its own
+ *  (e.g. a Resend-style key-enforcing API = true; plain AWS SES SendEmail = false). */
+export type EmailTransportCapabilities = {
+  idempotentSend: boolean
 }
 
 /** Lowest-level abstraction: turn an EmailMessage into a delivery attempt. Knows
@@ -57,5 +69,6 @@ export type EmailSendOptions = {
  *  EmailSendResult instead. */
 export interface EmailTransport {
   readonly name: string
+  readonly capabilities: EmailTransportCapabilities
   send(message: EmailMessage, options?: EmailSendOptions): Promise<EmailSendResult>
 }
