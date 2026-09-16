@@ -285,3 +285,79 @@ handling, and admin read interfaces.
 Platform + Postgres confirmation (2D); email provider + sending domain + recipient
 inbox + DNS (2C); retention duration and legal basis/consent record; CRM target;
 whether a scheduled task is acceptable for `pending` re-attempts (2E).
+
+---
+
+## 20. Phase 2C — durable PostgreSQL persistence (implemented)
+
+Replaces the production limitation of the in-memory store with a durable Postgres
+`LeadRepository`. Notification remains the log provider — no email/CRM/queue.
+
+### Technology
+- **`pg` (node-postgres)** with **explicit parameterized SQL** — no ORM. The
+  repository is one atomic `INSERT … ON CONFLICT` + row mapping; Prisma (engine
+  binary) / Drizzle (codegen) are unjustified weight. `pg` is portable across all
+  managed Postgres, supports pooling, and needs no build step.
+- **`@electric-sql/pglite`** (devDependency) — in-process WASM Postgres — runs the
+  real adapter SQL (constraints, `ON CONFLICT`, `23505`) in integration tests with
+  no infra, behind a tiny `SqlExecutor` port.
+
+### Schema (`db/migrations/0001_create_leads.sql`)
+`leads`: `id UUID PK`, `reference VARCHAR(32)`, `submission_token VARCHAR(64)`,
+`created_at/updated_at TIMESTAMPTZ`, `status VARCHAR(16) DEFAULT 'new'`, `enquiry_type`,
+`contact_name/contact_email/country` (NOT NULL), `contact_phone/company/commodity/
+quantity/origin/destination` (nullable), `message VARCHAR(4000) NOT NULL`, `source`.
+Constraints: `leads_reference_unique`, `leads_submission_token_unique`, and CHECKs on
+`status` and `enquiry_type` (the DB defends the domain, not only TypeScript). No
+`correlationId`, IP, user-agent, or bot token stored.
+
+### Repository + atomic createOrGet
+`lib/leads/repository/postgres.ts` implements the existing `LeadRepository` over an
+injected `SqlExecutor`. `createOrGet`:
+`INSERT … ON CONFLICT ON CONSTRAINT leads_submission_token_unique DO NOTHING RETURNING *`
+— a returned row ⇒ `created:true`; no row ⇒ token already existed ⇒ `SELECT` and return
+it (`created:false`). A `reference` clash is a different unique constraint (not the
+conflict target) ⇒ raises `23505` on `leads_reference_unique` ⇒ throws
+`LeadReferenceCollisionError`, which `LeadSubmissionService` resolves by regenerating
+the reference and retrying (bounded to 5). Token conflicts are never mistaken for
+reference conflicts. The in-memory repository remains for unit tests / explicit local
+selection and is never deleted.
+
+### Factory + fail-closed
+`getLeadRepository()` selects by validated `LEAD_STORE` (`memory` | `postgres`); there
+is **no silent fallback** to memory. Production safety: the service rejects any
+non-`durable` repository in production (via the `durability` capability); a `postgres`
+selection with no `DATABASE_URL` fails every query (fail closed) rather than losing
+leads. Memory = `ephemeral`, Postgres = `durable`.
+
+### Connection + config
+One module-level `pg.Pool` per instance (reused across requests, small `max`,
+serverless-friendly), TLS controlled by `DATABASE_SSL` (`require` default). All DB
+config is server-only via `lib/config/env.ts` (`DATABASE_URL` is a `secret`, never
+logged / never client-exposed). Only parameterized queries.
+
+### Migrations
+Versioned `.sql` files in `db/migrations/` applied by `scripts/migrate.mjs`
+(`npm run db:migrate`), tracked in `schema_migrations`, each in a transaction. Never
+run at startup or on the request path. `*.down.sql` are for deliberate manual
+rollback. Workflow: add `NNNN_name.sql` (+ optional `.down.sql`) → `npm run db:migrate`
+locally → run the same in deploy (a release step, not app boot).
+
+### Local development
+A local Postgres (e.g. `postgres://localhost:5432/oeml?…`, `DATABASE_SSL=disable`) or a
+free managed dev DB (Neon/Supabase). Set `LEAD_STORE=postgres` + `DATABASE_URL` in
+`.env.local`, run `npm run db:migrate`, then `npm run dev`. Unit/integration tests
+need no external DB (PGlite runs in-process). No Docker is required.
+
+### Failure semantics (unchanged contract, now durable)
+validation/rate-limit/bot rejection → no DB call, no lead. Postgres unavailable /
+insert failure → no success, generic temporary error, non-PII log. Token retry → same
+lead + reference, no second notification. Reference collision → regenerate + bounded
+retry. Persist success → submission succeeds, then the log notifier runs; notification
+failure never revokes a persisted success.
+
+### Production activation checklist (NOT yet live)
+Provision Postgres → `npm run db:migrate` applied → server-only `DATABASE_URL`
+(+ `DATABASE_SSL=require`) set → `LEAD_STORE=postgres` → TLS confirmed → submission
+smoke test. Until all hold, production continues to fail closed. Email/CRM remain out
+of scope (later phases).

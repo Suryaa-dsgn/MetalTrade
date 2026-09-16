@@ -73,6 +73,10 @@ export async function submitLead(
     enquiryType: input.enquiryType,
     source: ctx.source,
   })
+  logger.info("lead.persist.started", {
+    correlationId: ctx.correlationId,
+    durability: repository.durability,
+  })
 
   for (let attempt = 1; attempt <= MAX_REFERENCE_ATTEMPTS; attempt++) {
     const now = nowFn()

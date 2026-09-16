@@ -10,6 +10,11 @@ preserves history; this file describes CURRENT state only.
 2. Read `CLAUDE.md` (agent rules, guardrails, working protocol).
 3. Read `docs/market-provider-readiness.md` for ANY market-data work (verified
    provider contracts, live/gated status, promotion + upgrade steps).
+   Read `docs/lead-backend-architecture.md` for ANY Contact/lead-backend work.
+   Lead store defaults to in-memory (`LEAD_STORE=memory`, ephemeral); durable
+   Postgres is wired but not activated — to run it locally set `LEAD_STORE=postgres`
+   + `DATABASE_URL` (+ `DATABASE_SSL=disable` for a local DB) in `.env.local` and run
+   `npm run db:migrate`. Tests need no external DB (PGlite runs in-process).
 4. Read the Product Blueprint / Design System only if product-IA / visual work.
 5. Read `docs/content-claims-register.md` (+ the client DOCX) for public-copy work.
 6. `git log --oneline` and `git status` before editing.

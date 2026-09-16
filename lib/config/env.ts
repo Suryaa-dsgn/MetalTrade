@@ -67,6 +67,16 @@ const schema = z.object({
   // false: without it the derived client identity is best-effort and spoofable
   // (documented), and reliable per-client limiting depends on the edge layer.
   rateLimitTrustProxy: boolFromEnv.catch(false),
+  // Lead persistence store (Backend Phase 2C). "memory" = in-memory (ephemeral,
+  // dev/test only); "postgres" = durable managed PostgreSQL. Default "memory".
+  // Production fails closed unless a durable store is selected AND configured —
+  // there is never a silent fallback from postgres to memory.
+  leadStore: selector("LEAD_STORE", ["memory", "postgres"], "memory"),
+  // PostgreSQL connection string (server-only; never logged, never client-exposed).
+  databaseUrl: secret,
+  // TLS mode for the DB connection. "require" verifies TLS (recommended in prod);
+  // "disable" only for a local non-TLS dev database.
+  databaseSsl: selector("DATABASE_SSL", ["require", "disable"], "require"),
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
@@ -118,6 +128,9 @@ export const serverConfig: ServerConfig = applyProductionHardening(
     marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
     botVerification: process.env.BOT_VERIFICATION,
     rateLimitTrustProxy: process.env.RATE_LIMIT_TRUST_PROXY,
+    leadStore: process.env.LEAD_STORE,
+    databaseUrl: process.env.DATABASE_URL,
+    databaseSsl: process.env.DATABASE_SSL,
     metalPriceApiKey: process.env.METALPRICE_API_KEY,
     metalsDevApiKey: process.env.METALS_DEV_API_KEY,
     eiaApiKey: process.env.EIA_API_KEY,

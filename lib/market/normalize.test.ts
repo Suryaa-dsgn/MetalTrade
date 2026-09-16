@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { normalizeQuote } from "@/lib/market/normalize"
 import type { BenchmarkConfig } from "@/lib/market/benchmarks"
 import { BENCHMARKS } from "@/lib/market/benchmarks"
@@ -38,6 +38,16 @@ function raw(over: Partial<RawQuote>): RawQuote {
     ...over,
   }
 }
+
+// Freshness is evaluated against the wall clock, so pin "now" to the retrieval time
+// to keep these fixtures deterministic regardless of the real date.
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date(RETRIEVED))
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe("normalizeQuote", () => {
   it("passes gold through as live (troy oz canonical, retrieved stamped)", () => {
