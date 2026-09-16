@@ -1,18 +1,17 @@
 import type { LeadNotificationDelivery } from "@/lib/leads/notification/delivery/types"
 
 /*
-  Backend Phase 2E-1 — durable notification-delivery repository port.
+  Backend Phase 2E — durable notification-delivery repository port.
 
-  Phase 2E-1 exposes ONLY the atomic intent write (mirrors the lead repository's
-  minimal `createOrGet`). `claimDue`/`markSent`/`markRetry`/`markFailed` are the drain
-  contract added in 2E-2/2E-3 — intentionally NOT declared here yet, so 2E-1 stays
-  small and no unused surface ships.
+  2E-1 added the atomic intent write (`createIntent`). 2E-2 adds EXPLICIT, validated
+  state-transition methods for persisting a first-attempt outcome — deliberately not a
+  generic `update()`, so the contract can only move a row through the allowed
+  transitions. Each terminal transition increments `attempts` exactly once (a real
+  provider send occurred) and stamps `last_attempt_at`; a transition is never called
+  for a config problem (disabled/misconfigured/unsupported), so `attempts` only ever
+  counts genuine send attempts.
 
-  Atomicity: `createIntent` is a single create-or-return-existing keyed by the
-  (lead_id, channel, purpose) identity, so a retried/concurrent submission never
-  creates a second intent. It is designed to run INSIDE the same transaction as the
-  lead insert (transactional outbox) — the Postgres impl is constructed with the
-  transaction-scoped executor; the in-memory impl runs a synchronous critical section.
+  NOT here yet (final drain slice): `claimDue` / lease / FOR UPDATE SKIP LOCKED.
 */
 
 export type CreateIntentResult = {
@@ -23,5 +22,25 @@ export type CreateIntentResult = {
 }
 
 export interface LeadNotificationDeliveryRepository {
+  /** Atomic create-or-return-existing keyed by (lead, channel, purpose). Runs inside
+   *  the lead transaction (transactional outbox). */
   createIntent(delivery: LeadNotificationDelivery): Promise<CreateIntentResult>
+
+  /** Terminal success: status→sent, attempts+1, last_attempt_at=at,
+   *  provider_message_id set, last_error_class + lock fields cleared. */
+  markSent(id: string, at: string, providerMessageId?: string): Promise<void>
+
+  /** Retryable outcome: status→pending, attempts+1, last_attempt_at=at,
+   *  last_error_class set, next_attempt_at set (data only — no scheduler yet),
+   *  lock fields cleared. */
+  markRetry(
+    id: string,
+    at: string,
+    errorClass: string,
+    nextAttemptAt: string
+  ): Promise<void>
+
+  /** Terminal failure: status→failed, attempts+1, last_attempt_at=at,
+   *  last_error_class set, lock fields cleared. No retry scheduled. */
+  markFailed(id: string, at: string, errorClass: string): Promise<void>
 }

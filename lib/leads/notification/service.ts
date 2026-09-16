@@ -3,11 +3,6 @@ import "server-only"
 import type { Lead, NotificationDelivery } from "@/lib/leads/types"
 import type { NotificationProvider } from "@/lib/leads/notification/types"
 import { logNotificationProvider } from "@/lib/leads/notification/providers/log"
-import {
-  getEmailSettings,
-  resolveEmailNotificationProvider,
-  emailMisconfigReason,
-} from "@/lib/leads/notification/email/registration"
 import { logger } from "@/lib/observability/logger"
 
 /*
@@ -99,26 +94,15 @@ class DefaultLeadNotificationService implements LeadNotificationService {
 }
 
 /*
-  Build the default provider set. The log provider always runs. The email provider
-  is registered ONLY when it can operate (EMAIL_PROVIDER != none and a supported,
-  configured adapter). A misconfiguration (e.g. EMAIL_PROVIDER=ses with no adapter,
-  or missing sender/recipient) is surfaced LOUDLY at error level and the email
-  provider is left unregistered — this never silently behaves like "none" and never
-  breaks lead capture (the caller must not throw on the persist path).
+  Build the default provider set for the ephemeral seam. As of Phase 2E-2 EMAIL is
+  delivered DURABLY via the notification-delivery outbox (persisted intent → bounded
+  first attempt → persisted outcome), NOT through this ephemeral dispatch — so email
+  is deliberately NOT registered here, and there is no double send. This seam now
+  carries only the non-durable `log` heartbeat; the durable path owns provider
+  resolution and its own fail-loud misconfiguration handling.
 */
 export function buildDefaultNotificationProviders(): NotificationProvider[] {
-  const providers: NotificationProvider[] = [logNotificationProvider]
-  const settings = getEmailSettings()
-  try {
-    const email = resolveEmailNotificationProvider(settings)
-    if (email) providers.push(email)
-  } catch (err) {
-    logger.error("lead.notification.email.misconfigured", {
-      provider: settings.provider,
-      reason: emailMisconfigReason(err),
-    })
-  }
-  return providers
+  return [logNotificationProvider]
 }
 
 // Per-instance singleton with the default provider set.

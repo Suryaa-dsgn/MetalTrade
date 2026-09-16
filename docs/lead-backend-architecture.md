@@ -581,3 +581,42 @@ Migration `0002`; persistent delivery types + repository port + Postgres/memory 
 transaction in the service; intent idempotency; PII-free observability. **Not yet:**
 retry/backoff, claiming, scheduler/drain, provider SDK, real-send changes, retention,
 CRM, admin, queue. The Phase 2D best-effort first-attempt path is unchanged.
+
+### 2E-2 scope (implemented) — first-attempt outcome persisted
+The persisted `pending` intent now drives a bounded FIRST send whose OUTCOME is
+written back onto the delivery row. Scope is strictly `pending → attempt → persist`
+(no scheduler, cron, drain, claiming, lease, retry loop, queue, worker, CRM, admin, or
+real SDK).
+
+- **Transitions (explicit, no generic update):** `markSent` (status→sent,
+  provider_message_id, error cleared), `markRetry` (status→pending, `next_attempt_at`
+  from backoff — DATA ONLY, no scheduler), `markFailed` (status→failed). Each
+  increments `attempts` exactly once. No `processing` state is used in this slice
+  (introduced with claiming/lease in the drain slice), so a handled outcome can never
+  leave a row stuck.
+- **Attempt accounting:** `attempts` counts REAL provider sends only. Disabled
+  (`EMAIL_PROVIDER=none` → no intent), misconfigured/unsupported provider, and intent
+  creation NEVER increment it — a misconfiguration preserves the `pending` intent, emits
+  a loud `lead.notification.email.misconfigured`, and makes no attempt, so the row is
+  processable once configuration is fixed.
+- **Capability-based ambiguity (timeout / exception):** the send races a bounded timer
+  (`sendWithTimeout`, shared with the 2D provider). An ambiguous outcome is auto-retried
+  (status→pending, backoff) ONLY when `transport.capabilities.idempotentSend === true`,
+  reusing the stable delivery `id` as the provider idempotency key; otherwise it is
+  marked `failed` with `ambiguous_*` for operator recovery. SES-style transports are
+  not assumed idempotent.
+- **Success boundary unchanged:** the attempt runs post-commit and is awaited (it may
+  extend request latency) but is best-effort — a sent/failed/timed-out outcome never
+  changes an already-successful submission. No detached promise.
+- **Email moved off the ephemeral seam:** `buildDefaultNotificationProviders` now
+  returns only the `log` heartbeat; email is delivered durably via the outbox, so there
+  is no double send.
+- **Backoff:** pure `backoff.ts` — exponential, full jitter, cap 1h, `MAX_ATTEMPTS=6`
+  (the multi-attempt enforcement belongs to the drain slice; 2E-2 only records the next
+  time as data).
+- **Logging:** `lead.notification.started` / `.sent` (+ providerMessageId) / `.failed`
+  (+ failureClass) / `.retry.scheduled` (+ nextAttemptAt), all PII-free.
+
+**Still deferred (final drain slice):** `claimDue` + `FOR UPDATE SKIP LOCKED` + lease
+recovery, the scheduled drain endpoint, multi-attempt retry enforcement, and any
+queue/worker.

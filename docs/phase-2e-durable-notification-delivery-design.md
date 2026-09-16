@@ -538,9 +538,12 @@ No Contact UI files. No CRM/admin/queue infra files.
   only; relevant observability. **NO** retry/backoff, claiming, scheduler/drain,
   provider SDK, real-send changes, retention, CRM, admin, queue. The existing Phase 2D
   first-attempt path stays as-is. Proves durability + atomicity + idempotency.
-- **2E-2 — synchronous first attempt persisted + backoff policy:** dispatcher does one
-  bounded attempt and writes `sent`/`pending(+backoff)`/`failed`; backoff + retryability
-  helpers; idempotency key through the transport seam.
+- **2E-2 (done):** the persisted `pending` intent drives one bounded first attempt
+  whose outcome is written back — explicit `markSent`/`markRetry`/`markFailed`
+  transitions (attempts counted only for real sends), pure backoff (`next_attempt_at`
+  as data), capability-based ambiguity handling with the delivery id as the provider
+  idempotency key, and email moved off the ephemeral seam onto the durable outbox.
+  No scheduler/claiming/retry-loop.
 - **2E-3 — scheduled drain + claiming:** `claimDue` with `FOR UPDATE SKIP LOCKED` +
   lease/crash recovery; the protected drain endpoint; concurrency + recovery tests;
   wire the platform scheduler (host-dependent, minimal).

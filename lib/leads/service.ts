@@ -22,6 +22,7 @@ import {
   defaultEmailIntent,
   type EmailIntentDescriptor,
 } from "@/lib/leads/notification/email/registration"
+import { runDefaultFirstAttempt } from "@/lib/leads/notification/delivery/first-attempt.factory"
 import { logger } from "@/lib/observability/logger"
 
 /*
@@ -63,6 +64,13 @@ export type LeadSubmissionDeps = {
   /** The notification intent to persist for a new lead; default derived from config
    *  (`null` = email disabled → no intent row). Injectable for tests. */
   emailIntent?: EmailIntentDescriptor | null
+  /** The durable first-attempt (default: config-resolved email attempt). Runs
+   *  post-commit, best-effort; never fails the submission. Injectable for tests. */
+  firstAttempt?: (
+    lead: Lead,
+    delivery: LeadNotificationDelivery,
+    ctx: { correlationId: string }
+  ) => Promise<void>
 }
 
 const MAX_REFERENCE_ATTEMPTS = 5
@@ -89,6 +97,7 @@ export async function submitLead(
   const isProduction = deps.isProduction ?? process.env.NODE_ENV === "production"
   const emailIntent =
     deps.emailIntent !== undefined ? deps.emailIntent : defaultEmailIntent()
+  const firstAttempt = deps.firstAttempt ?? runDefaultFirstAttempt
 
   // Production safety: an ephemeral (in-memory) store must NEVER masquerade as
   // durable production persistence. Fail closed rather than return a false success.
@@ -125,10 +134,11 @@ export async function submitLead(
     try {
       // Atomic unit of work: lead + (for a new lead with email intended) the pending
       // notification intent. Both commit together or roll back together.
-      const { outcome, intentCreated } = await unitOfWork.run(
+      const { outcome, intentCreated, delivery } = await unitOfWork.run(
         async ({ leads, deliveries }) => {
           const outcome = await leads.createOrGet(lead)
           let intentCreated = false
+          let delivery: LeadNotificationDelivery | undefined
           if (outcome.created && emailIntent) {
             const nowIso = now.toISOString()
             const intent: LeadNotificationDelivery = {
@@ -145,8 +155,9 @@ export async function submitLead(
             }
             const res = await deliveries.createIntent(intent)
             intentCreated = res.created
+            delivery = res.delivery
           }
-          return { outcome, intentCreated }
+          return { outcome, intentCreated, delivery }
         }
       )
 
@@ -167,11 +178,29 @@ export async function submitLead(
             provider: emailIntent.provider,
           })
         }
-        // Post-persist notification (Phase 2D best-effort dispatch), OUTSIDE the
-        // transaction. Never changes submission success — the service already
-        // guarantees no-throw, and this guard is belt-and-suspenders so even a
-        // misbehaving notifier cannot fail a persisted submission. (2E-2 will make
-        // the first attempt update the persisted delivery row.)
+
+        // Durable first attempt (2E-2): bounded email send whose OUTCOME is persisted
+        // onto the delivery row. Runs OUTSIDE the transaction, best-effort — a send
+        // failure/timeout never changes the already-successful submission. Only for a
+        // newly persisted intent (so a duplicate never triggers a second attempt).
+        if (intentCreated && delivery) {
+          try {
+            await firstAttempt(outcome.lead, delivery, {
+              correlationId: ctx.correlationId,
+            })
+          } catch (attemptErr) {
+            logger.error("lead.notification.failed", {
+              correlationId: ctx.correlationId,
+              leadId: outcome.lead.id,
+              deliveryId: delivery.id,
+              errorClass: attemptErr instanceof Error ? attemptErr.name : "unknown",
+            })
+          }
+        }
+
+        // Non-durable log-channel heartbeat (Phase 2D seam). Email is NOT dispatched
+        // here any more — it flows through the durable delivery above — so there is no
+        // double send. Best-effort; never fails a persisted submission.
         try {
           await notifier.notify(outcome.lead, { correlationId: ctx.correlationId })
         } catch (notifyErr) {

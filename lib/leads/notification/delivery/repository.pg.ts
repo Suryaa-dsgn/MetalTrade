@@ -36,6 +36,26 @@ const SELECT_BY_IDENTITY_SQL = `
   SELECT * FROM lead_notification_deliveries
   WHERE lead_id = $1 AND channel = $2 AND purpose = $3`
 
+const MARK_SENT_SQL = `
+  UPDATE lead_notification_deliveries
+  SET status = 'sent', attempts = attempts + 1, last_attempt_at = $2,
+      provider_message_id = $3, last_error_class = NULL,
+      locked_at = NULL, locked_by = NULL, updated_at = $2
+  WHERE id = $1`
+
+const MARK_RETRY_SQL = `
+  UPDATE lead_notification_deliveries
+  SET status = 'pending', attempts = attempts + 1, last_attempt_at = $2,
+      last_error_class = $3, next_attempt_at = $4,
+      locked_at = NULL, locked_by = NULL, updated_at = $2
+  WHERE id = $1`
+
+const MARK_FAILED_SQL = `
+  UPDATE lead_notification_deliveries
+  SET status = 'failed', attempts = attempts + 1, last_attempt_at = $2,
+      last_error_class = $3, locked_at = NULL, locked_by = NULL, updated_at = $2
+  WHERE id = $1`
+
 export class PostgresLeadNotificationDeliveryRepository
   implements LeadNotificationDeliveryRepository
 {
@@ -59,5 +79,22 @@ export class PostgresLeadNotificationDeliveryRepository
     }
     // Should not happen: conflict reported but no row present.
     throw new Error("notification delivery conflict but existing intent not found")
+  }
+
+  async markSent(id: string, at: string, providerMessageId?: string): Promise<void> {
+    await this.exec.query(MARK_SENT_SQL, [id, at, providerMessageId ?? null])
+  }
+
+  async markRetry(
+    id: string,
+    at: string,
+    errorClass: string,
+    nextAttemptAt: string
+  ): Promise<void> {
+    await this.exec.query(MARK_RETRY_SQL, [id, at, errorClass, nextAttemptAt])
+  }
+
+  async markFailed(id: string, at: string, errorClass: string): Promise<void> {
+    await this.exec.query(MARK_FAILED_SQL, [id, at, errorClass])
   }
 }

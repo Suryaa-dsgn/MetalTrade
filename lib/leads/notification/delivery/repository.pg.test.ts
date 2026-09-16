@@ -140,6 +140,57 @@ describe("PostgresLeadNotificationDeliveryRepository.createIntent", () => {
   })
 })
 
+describe("PostgresLeadNotificationDeliveryRepository — state transitions", () => {
+  async function seedIntent() {
+    const { lead: stored } = await leadRepo.createOrGet(lead())
+    const { delivery } = await deliveryRepo.createIntent(intent(stored.id))
+    return delivery
+  }
+  async function readRow(id: string) {
+    const r = await exec.query(
+      "SELECT * FROM lead_notification_deliveries WHERE id = $1",
+      [id]
+    )
+    return r.rows[0]
+  }
+
+  it("markSent → sent, attempts=1, provider_message_id, error cleared", async () => {
+    const d = await seedIntent()
+    await deliveryRepo.markSent(d.id, "2026-09-16T10:05:00.000Z", "msg-42")
+    const row = await readRow(d.id)
+    expect(row.status).toBe("sent")
+    expect(Number(row.attempts)).toBe(1)
+    expect(row.provider_message_id).toBe("msg-42")
+    expect(row.last_error_class).toBeNull()
+  })
+
+  it("markRetry → pending, attempts=1, next_attempt_at + error class", async () => {
+    const d = await seedIntent()
+    await deliveryRepo.markRetry(
+      d.id,
+      "2026-09-16T10:05:00.000Z",
+      "provider_5xx",
+      "2026-09-16T10:10:00.000Z"
+    )
+    const row = await readRow(d.id)
+    expect(row.status).toBe("pending")
+    expect(Number(row.attempts)).toBe(1)
+    expect(row.last_error_class).toBe("provider_5xx")
+    expect(new Date(String(row.next_attempt_at)).toISOString()).toBe(
+      "2026-09-16T10:10:00.000Z"
+    )
+  })
+
+  it("markFailed → failed, attempts=1, error class", async () => {
+    const d = await seedIntent()
+    await deliveryRepo.markFailed(d.id, "2026-09-16T10:05:00.000Z", "rejected")
+    const row = await readRow(d.id)
+    expect(row.status).toBe("failed")
+    expect(Number(row.attempts)).toBe(1)
+    expect(row.last_error_class).toBe("rejected")
+  })
+})
+
 describe("lead_notification_deliveries — DB defends invariants", () => {
   it("rejects an unknown status via the CHECK constraint", async () => {
     const { lead: stored } = await leadRepo.createOrGet(lead())

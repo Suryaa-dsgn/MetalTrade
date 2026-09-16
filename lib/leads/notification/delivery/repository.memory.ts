@@ -33,6 +33,59 @@ export class InMemoryLeadNotificationDeliveryRepository
     // --- end critical section ---
   }
 
+  private mutate(id: string, fn: (d: LeadNotificationDelivery) => void): void {
+    for (const d of this.byIdentity.values()) {
+      if (d.id === id) {
+        fn(d)
+        return
+      }
+    }
+    throw new Error(`notification delivery not found: ${id}`)
+  }
+
+  async markSent(id: string, at: string, providerMessageId?: string): Promise<void> {
+    this.mutate(id, (d) => {
+      d.status = "sent"
+      d.attempts += 1
+      d.lastAttemptAt = at
+      d.providerMessageId = providerMessageId
+      d.lastErrorClass = undefined
+      d.lockedAt = undefined
+      d.lockedBy = undefined
+      d.updatedAt = at
+    })
+  }
+
+  async markRetry(
+    id: string,
+    at: string,
+    errorClass: string,
+    nextAttemptAt: string
+  ): Promise<void> {
+    this.mutate(id, (d) => {
+      d.status = "pending"
+      d.attempts += 1
+      d.lastAttemptAt = at
+      d.lastErrorClass = errorClass
+      d.nextAttemptAt = nextAttemptAt
+      d.lockedAt = undefined
+      d.lockedBy = undefined
+      d.updatedAt = at
+    })
+  }
+
+  async markFailed(id: string, at: string, errorClass: string): Promise<void> {
+    this.mutate(id, (d) => {
+      d.status = "failed"
+      d.attempts += 1
+      d.lastAttemptAt = at
+      d.lastErrorClass = errorClass
+      d.lockedAt = undefined
+      d.lockedBy = undefined
+      d.updatedAt = at
+    })
+  }
+
   /** Test/ops helper — number of stored delivery intents. */
   size(): number {
     return this.byIdentity.size

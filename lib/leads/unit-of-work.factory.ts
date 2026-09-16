@@ -6,7 +6,7 @@ import { getLeadRepository } from "@/lib/leads/repository"
 import { InMemoryLeadRepository } from "@/lib/leads/repository/memory"
 import { PostgresLeadRepository } from "@/lib/leads/repository/postgres"
 import { PostgresLeadNotificationDeliveryRepository } from "@/lib/leads/notification/delivery/repository.pg"
-import { InMemoryLeadNotificationDeliveryRepository } from "@/lib/leads/notification/delivery/repository.memory"
+import { getSharedMemoryDeliveryRepository } from "@/lib/leads/notification/delivery"
 import { withPgTransaction } from "@/lib/leads/db/pg-executor"
 import {
   InMemoryLeadUnitOfWork,
@@ -57,7 +57,7 @@ export function getLeadUnitOfWork(): LeadUnitOfWork {
       shared instanceof InMemoryLeadRepository ? shared : new InMemoryLeadRepository()
     memoryInstance = new InMemoryLeadUnitOfWork(
       leads,
-      new InMemoryLeadNotificationDeliveryRepository()
+      getSharedMemoryDeliveryRepository()
     )
   }
   return memoryInstance

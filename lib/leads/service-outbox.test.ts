@@ -41,15 +41,18 @@ const emailIntent = {
   provider: "resend",
 }
 
-// Notifier stub so the 2D dispatch path does nothing in these persistence tests.
+// Notifier stub so the log-channel dispatch does nothing in these persistence tests.
 const notifier = { notify: async () => [] }
+// No-op first attempt: these tests assert PERSISTENCE (intent creation/rollback), not
+// the send outcome, so we isolate them from config-resolved delivery.
+const noAttempt = async () => {}
 
 afterEach(() => vi.restoreAllMocks())
 
 describe("submitLead — atomic lead + intent (2E-1)", () => {
   it("(1) commits the lead and a pending intent together", async () => {
     const uow = new InMemoryLeadUnitOfWork()
-    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
 
     expect(result.ok).toBe(true)
     expect(uow.leads.size()).toBe(1)
@@ -77,7 +80,7 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
     const leads = new InMemoryLeadRepository()
     const uow = new InMemoryLeadUnitOfWork(leads, new ThrowingDeliveries())
 
-    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
 
     expect(result).toEqual({ ok: false, reason: "persistence" })
     expect(leads.size()).toBe(0) // lead rolled back with the failed intent
@@ -94,7 +97,7 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
     }
     const uow = new SingleRepositoryUnitOfWork(throwingLeads, deliveries)
 
-    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
 
     expect(result).toEqual({ ok: false, reason: "persistence" })
     expect(createIntent).not.toHaveBeenCalled()
@@ -102,8 +105,8 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
 
   it("(4) a duplicate submission creates no duplicate intent", async () => {
     const uow = new InMemoryLeadUnitOfWork()
-    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
-    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
 
     expect(uow.leads.size()).toBe(1)
     expect(uow.deliveries.size()).toBe(1)
@@ -112,8 +115,8 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
   it("(5) concurrent same-token submissions leave one lead and one intent", async () => {
     const uow = new InMemoryLeadUnitOfWork()
     await Promise.all([
-      submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent }),
-      submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent }),
+      submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt }),
+      submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt }),
     ])
     expect(uow.leads.size()).toBe(1)
     expect(uow.deliveries.size()).toBe(1)
@@ -125,6 +128,7 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
       unitOfWork: uow,
       notifier,
       emailIntent: null,
+      firstAttempt: noAttempt,
     })
     expect(result.ok).toBe(true)
     expect(uow.leads.size()).toBe(1)
@@ -134,14 +138,14 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
   it("(8b) default resolution (EMAIL_PROVIDER=none in test env) creates no intent", async () => {
     const uow = new InMemoryLeadUnitOfWork()
     // No emailIntent dep → derived from config, which defaults to "none".
-    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier })
+    const result = await submitLead(input, ctx, { unitOfWork: uow, notifier, firstAttempt: noAttempt })
     expect(result.ok).toBe(true)
     expect(uow.deliveries.size()).toBe(0)
   })
 
   it("(9) a configured email purpose creates exactly one pending intent", async () => {
     const uow = new InMemoryLeadUnitOfWork()
-    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
     const rows = uow.deliveries.all()
     expect(rows).toHaveLength(1)
     expect(rows[0].status).toBe("pending")
@@ -151,7 +155,7 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
 
   it("(10) the delivery row contains no PII", async () => {
     const uow = new InMemoryLeadUnitOfWork()
-    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
     const serialized = JSON.stringify(uow.deliveries.all())
     expect(serialized).not.toContain("Ada Lovelace")
     expect(serialized).not.toContain("ada@example.com")
@@ -162,8 +166,8 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
 
   it("(12) existing lead idempotency behavior remains intact (same reference on retry)", async () => {
     const uow = new InMemoryLeadUnitOfWork()
-    const first = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
-    const second = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    const first = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
+    const second = await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
     expect(first.ok && first.created).toBe(true)
     expect(second.ok && second.created).toBe(false)
     if (first.ok && second.ok) {
@@ -174,8 +178,8 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
   it("still notifies exactly once for a created lead, never for a duplicate", async () => {
     const uow = new InMemoryLeadUnitOfWork()
     const notify = vi.fn().mockResolvedValue([])
-    await submitLead(input, ctx, { unitOfWork: uow, notifier: { notify }, emailIntent })
-    await submitLead(input, ctx, { unitOfWork: uow, notifier: { notify }, emailIntent })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier: { notify }, emailIntent, firstAttempt: noAttempt })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier: { notify }, emailIntent, firstAttempt: noAttempt })
     expect(notify).toHaveBeenCalledTimes(1)
   })
 
@@ -185,7 +189,7 @@ describe("submitLead — atomic lead + intent (2E-1)", () => {
       captured.push({ event, fields })
     })
     const uow = new InMemoryLeadUnitOfWork()
-    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent })
+    await submitLead(input, ctx, { unitOfWork: uow, notifier, emailIntent, firstAttempt: noAttempt })
 
     const persisted = captured.find((e) => e.event === "lead.notification.intent.persisted")
     expect(persisted).toBeTruthy()
