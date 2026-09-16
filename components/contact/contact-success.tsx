@@ -2,14 +2,9 @@ import { CheckIconGlyph } from "@/components/ui/icon"
 import { H3 } from "@/components/ui/typography"
 
 /*
-  Contact success state. Client-facing copy with no invented SLA. A small
-  development-only note (hidden in production) keeps us honest: in this phase leads
-  are captured in memory only — persistent production storage and live delivery
-  (email/CRM) are not connected yet.
+  Contact success state. Client-facing copy with no invented SLA.
 */
 export function ContactSuccess() {
-  const isDev = process.env.NODE_ENV !== "production"
-
   return (
     <div className="rounded-lg border border-border bg-surface p-6" role="status">
       <div className="flex items-center gap-3">
@@ -23,13 +18,6 @@ export function ContactSuccess() {
         Our team will review the information and contact you using the details
         provided.
       </p>
-
-      {isDev ? (
-        <p className="mt-4 text-body-s text-muted-foreground">
-          Development build: leads are captured in memory only — persistent storage
-          and live delivery are not connected yet.
-        </p>
-      ) : null}
     </div>
   )
 }
