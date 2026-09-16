@@ -664,6 +664,83 @@ processing-with-an-expired-lease, safely across multiple instances.
 **Remaining before real email actually sends:** approve an email vendor and implement
 its `EmailTransport` adapter (SDK + credentials, `capabilities.idempotentSend`),
 register it in `IMPLEMENTED_TRANSPORTS`, set `EMAIL_PROVIDER`/`EMAIL_FROM`/`EMAIL_TO`,
-and attach a platform scheduler to the drain route. Until a vendor is wired, the whole
-durable path is exercised end-to-end in tests but produces no live email
-(fail-loud/preserved-pending when a provider is selected without an adapter).
+and attach a platform scheduler to the drain route. (Resend is now that adapter — §23.)
+
+---
+
+## 23. Real email provider — Resend (implemented; dev/staging)
+
+The first concrete `EmailTransport` is **Resend** (`resend` SDK, v6.28.1). It plugs
+into the EXISTING architecture — `EmailNotificationProvider` → `ResendEmailTransport`
+→ Resend API — with NO second pipeline. The provider stays replaceable: anything
+implementing `EmailTransport` (a future SES adapter, etc.) can take its place behind
+the same seam.
+
+### Transport
+- `lib/leads/notification/email/transports/resend.ts` — `createResendTransport(apiKey,
+  client?)`. Knows only `EmailMessage` + `EmailSendOptions` (never a `Lead`).
+  `capabilities.idempotentSend = true`. The optional `client` lets tests inject a fake
+  `resend.emails` (the SDK is mocked in CI — no live account needed).
+- **Idempotency:** `EmailSendOptions.idempotencyKey` (the stable `delivery.id`) is
+  forwarded to Resend's `emails.send(payload, { idempotencyKey })` (sent as the
+  `Idempotency-Key` header). Same key on every retry for a logical delivery — no new
+  scheme.
+- **providerMessageId:** on success the Resend email id (`data.id`) is returned as
+  `providerMessageId` and persisted by `markSent`.
+- **Result mapping:** `data.id` → `sent`; a Resend error → `temporary_failure` for
+  transient/capacity codes (`rate_limit_exceeded`, `*_quota_exceeded`,
+  `application_error`, `internal_server_error`, `concurrent_idempotent_requests`, or a
+  5xx/429 status) and `permanent_failure` otherwise (validation, auth, bad address,
+  not-found …). Only the short Resend error-code NAME is used as the classification —
+  **never the raw provider message/body**. Neither data nor error → transient
+  `malformed_response`. A thrown network error is normalized to `transport_exception`
+  by `sendWithTimeout`.
+- **Timeout / cancellation:** reuses `sendWithTimeout` (no new timeout path). The
+  Resend SDK does not accept an `AbortSignal`, so a timed-out request is not truly
+  cancelled — the bound only caps how long a submission waits; provider idempotency
+  keeps a later retry safe. Documented limitation, not worked around.
+
+### Registration + fail-early
+`createEmailTransport` (`factory.ts`) now builds Resend for `EMAIL_PROVIDER=resend`,
+reading server-only `RESEND_API_KEY`; a missing key throws `EmailConfigError`
+(fail loud). `ses` still throws `UnsupportedEmailProviderError`. `none` registers no
+transport. Missing `EMAIL_FROM`/`EMAIL_TO` under a selected provider also fails loudly
+(surfaced as `lead.notification.email.misconfigured`, pending rows preserved, no
+attempt consumed). A misconfiguration NEVER destroys an accepted lead.
+
+### Configuration (server-only)
+`EMAIL_PROVIDER=resend`, `RESEND_API_KEY` (secret — never logged / client-exposed /
+returned from a route / `NEXT_PUBLIC`), `EMAIL_FROM`, `EMAIL_TO`, `EMAIL_REPLY_TO`
+(`lead-email` puts the lead's validated email in Reply-To only; never From/To). All
+addresses/keys are environment configuration — nothing hard-coded. `EMAIL_PROVIDER=none`
+remains the safe default.
+
+### Domain verification (two testing modes)
+- **A — initial Resend testing:** use a Resend sandbox/verified test sender the current
+  account allows as `EMAIL_FROM`, and a developer/manager inbox as `EMAIL_TO`.
+- **B — production/domain testing:** after the client grants DNS access and the OEML
+  sending domain is verified in Resend. This requires DNS records: **SPF**, **DKIM**
+  (Resend-provided), and a recommended **DMARC** policy. This repo makes NO DNS changes
+  automatically.
+
+### Safe test send
+`npm run email:test` (`scripts/email-test.mjs`) sends ONE clearly-labeled connectivity
+test through Resend using the configured environment. It refuses `NODE_ENV=production`,
+takes the recipient from `EMAIL_TO` (no arbitrary/public recipient input), never prints
+`RESEND_API_KEY`, and prints only the outcome (`providerMessageId` or an error code).
+It is a credential/domain check — the live lead flow sends via the app transport, not
+this script. There is no public email-testing endpoint. Provide env in the shell or via
+`node --env-file=.env.local scripts/email-test.mjs`.
+
+### Client handover / ownership
+For production the **client should own the Resend account/project**. The development
+team uses delegated access or a production API key supplied via secrets. Any developer
+key used for dev/staging must be **rotated at handover**. Do not tie production
+permanently to a developer's personal Resend account. The transport seam means
+switching accounts (or vendors) is a config/adapter change, not a code rewrite.
+
+### Still gated on approval / infra
+A **platform scheduler** for the drain route is still not wired (deployment undecided),
+and durable Postgres lead storage still needs provisioning (§ activation checklist).
+Live email requires a real `RESEND_API_KEY` + verified sender; until then the pipeline
+is exercised end-to-end with a mocked SDK in tests and produces no live mail.

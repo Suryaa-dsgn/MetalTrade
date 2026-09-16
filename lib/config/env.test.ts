@@ -23,6 +23,7 @@ const base: ServerConfig = {
   emailTo: undefined,
   emailReplyTo: "disabled",
   notificationDrainSecret: undefined,
+  resendApiKey: undefined,
   metalPriceApiKey: undefined,
   metalsDevApiKey: undefined,
   eiaApiKey: undefined,

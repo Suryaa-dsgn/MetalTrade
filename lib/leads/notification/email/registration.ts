@@ -82,7 +82,7 @@ export function resolveEmailNotificationProvider(
 /** The reason class for a loud misconfiguration log (never PII, never addresses). */
 export function emailMisconfigReason(err: unknown): string {
   if (err instanceof UnsupportedEmailProviderError) return "unsupported_provider"
-  if (err instanceof EmailConfigError) return "missing_addresses"
+  if (err instanceof EmailConfigError) return "missing_configuration"
   return "unknown"
 }
 

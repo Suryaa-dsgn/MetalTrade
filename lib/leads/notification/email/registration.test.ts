@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import {
   createEmailTransport,
+  EmailConfigError,
   UnsupportedEmailProviderError,
 } from "@/lib/leads/notification/email/factory"
 import {
@@ -27,12 +28,13 @@ const settings = (over: Partial<EmailSettings>): EmailSettings => ({
   ...over,
 })
 
-describe("createEmailTransport — no adapter implemented yet", () => {
-  it("throws UnsupportedEmailProviderError for ses", () => {
+describe("createEmailTransport", () => {
+  it("throws UnsupportedEmailProviderError for ses (no adapter)", () => {
     expect(() => createEmailTransport("ses")).toThrow(UnsupportedEmailProviderError)
   })
-  it("throws UnsupportedEmailProviderError for resend", () => {
-    expect(() => createEmailTransport("resend")).toThrow(UnsupportedEmailProviderError)
+  it("throws EmailConfigError for resend when RESEND_API_KEY is missing (test env)", () => {
+    // resend IS implemented now, but requires the key → fail loudly, not disabled.
+    expect(() => createEmailTransport("resend")).toThrow(EmailConfigError)
   })
 })
 
@@ -49,10 +51,12 @@ describe("resolveEmailNotificationProvider", () => {
     ).toThrow(UnsupportedEmailProviderError)
   })
 
-  it("fails loudly when resend is selected with no adapter", () => {
+  it("fails loudly when resend is selected but RESEND_API_KEY is missing", () => {
+    // resend adapter exists; the missing key is a loud configuration error, not a
+    // silent disable.
     expect(() =>
-      resolveEmailNotificationProvider(settings({ provider: "resend" }))
-    ).toThrow(UnsupportedEmailProviderError)
+      resolveEmailNotificationProvider(settings({ provider: "resend", from: "a@x", to: "b@y" }))
+    ).toThrow(EmailConfigError)
   })
 
   it("classifies an unsupported provider as 'unsupported_provider'", () => {
@@ -61,6 +65,15 @@ describe("resolveEmailNotificationProvider", () => {
       expect.unreachable()
     } catch (err) {
       expect(emailMisconfigReason(err)).toBe("unsupported_provider")
+    }
+  })
+
+  it("classifies a missing-key configuration error as 'missing_configuration'", () => {
+    try {
+      resolveEmailNotificationProvider(settings({ provider: "resend", from: "a@x", to: "b@y" }))
+      expect.unreachable()
+    } catch (err) {
+      expect(emailMisconfigReason(err)).toBe("missing_configuration")
     }
   })
 })

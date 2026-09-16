@@ -1,24 +1,23 @@
 import "server-only"
 
+import { serverConfig } from "@/lib/config/env"
 import type { EmailTransport } from "@/lib/leads/notification/email/types"
+import { createResendTransport } from "@/lib/leads/notification/email/transports/resend"
 
 /*
-  Email transport factory (Backend Phase 2D). Fail-closed, and LOUD about
-  misconfiguration — the same principle as lead persistence (no silent fallback).
+  Email transport factory. Fail-closed, and LOUD about misconfiguration — the same
+  principle as lead persistence (no silent fallback).
 
-  No production email SDK is implemented in this phase (vendor not yet approved), so
-  no real transport exists. Selecting a provider that cannot operate is therefore an
-  explicit configuration error, NOT an ordinary "disabled" or "not configured"
-  state:
+  Selecting a provider that cannot operate is an explicit configuration error, NOT an
+  ordinary "disabled" or "not configured" state:
 
     - EMAIL_PROVIDER=none   → handled upstream; this factory is never called.
-    - EMAIL_PROVIDER=ses    → UnsupportedEmailProviderError (adapter not implemented)
-    - EMAIL_PROVIDER=resend → UnsupportedEmailProviderError (adapter not implemented)
+    - EMAIL_PROVIDER=resend → ResendEmailTransport (real). Requires RESEND_API_KEY,
+                              else EmailConfigError (fail loudly, no silent fallback).
+    - EMAIL_PROVIDER=ses    → UnsupportedEmailProviderError (adapter not implemented).
 
-  This prevents the dangerous state where an operator sets EMAIL_PROVIDER=ses,
-  believes email is enabled, and the app silently sends nothing. When a real adapter
-  lands (a future phase, with its SDK + credentials), it is registered in
-  IMPLEMENTED_TRANSPORTS and this factory returns it.
+  This prevents the dangerous state where an operator selects a provider, believes
+  email is enabled, and the app silently sends nothing.
 */
 
 /** Thrown when a provider is selected whose transport adapter does not exist yet.
@@ -40,13 +39,22 @@ export class EmailConfigError extends Error {
   }
 }
 
-/** Transport adapters that actually exist. Empty in Phase 2D by design. A future
- *  SES/Resend adapter registers a builder here. */
-const IMPLEMENTED_TRANSPORTS: Record<string, () => EmailTransport> = {}
+/** Transport adapters that actually exist. Each reads its OWN required secret and
+ *  throws EmailConfigError (fail loud) when it is missing. */
+const IMPLEMENTED_TRANSPORTS: Record<string, () => EmailTransport> = {
+  resend: () => {
+    const apiKey = serverConfig.resendApiKey
+    if (!apiKey) {
+      throw new EmailConfigError('EMAIL_PROVIDER="resend" requires RESEND_API_KEY')
+    }
+    return createResendTransport(apiKey)
+  },
+}
 
 /**
  * Build the transport for a NON-"none" provider. Throws UnsupportedEmailProviderError
- * when the adapter is not implemented (fail loudly, never downgrade to disabled).
+ * when no adapter exists for the provider, or EmailConfigError when the adapter exists
+ * but its required secret is missing (both fail loudly, never downgrade to disabled).
  */
 export function createEmailTransport(provider: string): EmailTransport {
   const builder = IMPLEMENTED_TRANSPORTS[provider]
