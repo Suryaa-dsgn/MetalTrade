@@ -51,3 +51,37 @@ export const pgExecutor: SqlExecutor = {
     return { rows: result.rows as T[] }
   },
 }
+
+/*
+  Backend Phase 2E-1 — transactional Unit of Work over a single pooled client.
+  Acquires ONE client, runs `BEGIN`, hands a transaction-scoped SqlExecutor (bound to
+  that client) to `fn`, then `COMMIT`; any throw triggers `ROLLBACK` and re-raises. So
+  lead + delivery-intent writes land together or not at all. Still parameterized-only;
+  the connection string / credentials are never logged.
+*/
+export async function withPgTransaction<T>(
+  fn: (tx: SqlExecutor) => Promise<T>
+): Promise<T> {
+  const client = await getPool().connect()
+  const tx: SqlExecutor = {
+    async query<T2 extends SqlRow = SqlRow>(text: string, params?: readonly unknown[]) {
+      const result = await client.query(text, params ? [...params] : undefined)
+      return { rows: result.rows as T2[] }
+    },
+  }
+  try {
+    await client.query("BEGIN")
+    const out = await fn(tx)
+    await client.query("COMMIT")
+    return out
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK")
+    } catch {
+      // A rollback failure must not mask the original error.
+    }
+    throw err
+  } finally {
+    client.release()
+  }
+}

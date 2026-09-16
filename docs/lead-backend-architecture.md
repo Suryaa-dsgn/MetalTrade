@@ -521,8 +521,63 @@ register it in `IMPLEMENTED_TRANSPORTS` → set `EMAIL_PROVIDER`, `EMAIL_FROM`,
 stays disabled (`none`) or fails loudly if a provider is selected without an adapter.
 
 ### What remains for reliable persistent notification retries (Phase 2E)
-Persist `NotificationDelivery` (`pending`/`sent`/`failed` + attempts) so a crash
-between persist and send is recoverable; add a bounded synchronous retry plus a
-durable re-attempt driven by a scheduled task; add real transport cancellation via
-the `AbortSignal` seam; upgrade to a queue/worker only when volume or multiple
-channels require it.
+Persist `NotificationDelivery` (`pending`/`processing`/`sent`/`failed` + attempts) so a
+crash between persist and send is recoverable; add bounded retry + backoff plus a
+durable scheduled drain with safe row claiming; add real transport cancellation via the
+`AbortSignal` seam; upgrade to a queue/worker only when volume or multiple channels
+require it. Full design: `docs/phase-2e-durable-notification-delivery-design.md`.
+
+---
+
+## 22. Phase 2E — durable notification delivery (design; 2E-1 implemented)
+
+Full design and rationale live in
+`docs/phase-2e-durable-notification-delivery-design.md`. The load-bearing decisions,
+recorded here as canon:
+
+- **Transactional outbox, truly atomic.** The delivery INTENT row is written in the
+  **same Postgres transaction** as the lead (`BEGIN` createOrGet + createIntent
+  `COMMIT`; `ROLLBACK` if either fails) — never "lead commit, then intent insert". The
+  service orchestrates via a driver-agnostic `SqlExecutor.transaction(...)` Unit of
+  Work and holds NO raw SQL. Memory/PGlite model the same atomic semantics.
+- **Delivery identity = lead + channel + PURPOSE.** A dedicated
+  `lead_notification_deliveries` table with `UNIQUE (lead_id, channel, purpose)` (NOT
+  `(lead_id, channel)`), so a lead may have several notifications on one channel over
+  time. Purpose `internal_lead_alert` is the only one in 2E;
+  `customer_acknowledgement` / `assignment_alert` are future (not built). Intent
+  creation is idempotent via `ON CONFLICT (lead_id, channel, purpose) DO NOTHING`.
+- **System of record unchanged; success still gated only on durable lead persistence.**
+  Notification never invalidates an accepted lead; notification state never returns to
+  the `Lead` entity.
+- **Provider idempotency is capability-based, never assumed.** `EmailTransport` gains
+  `capabilities.idempotentSend`. An ambiguous timeout is auto-retried (with the stable
+  delivery-id key) ONLY when `idempotentSend=true`; otherwise it is classified for
+  operator recovery, not blindly retried. AWS SES `SendEmail` is not assumed
+  idempotent; a Resend-style key-enforcing transport may be.
+- **Disabled vs misconfigured.** `EMAIL_PROVIDER=none` → NO intent row created. A real
+  provider that is temporarily unusable/misconfigured → the `pending` intent is
+  PRESERVED (never discarded) for the durable drain to process once fixed; a
+  configuration problem is **not** counted as a delivery attempt.
+- **Claim only sendable deliveries.** Because claiming increments `attempts`, the drain
+  must not claim rows whose provider is currently unavailable/misconfigured — so
+  `attempts` always counts real delivery attempts.
+- **PII stays only in `leads`.** The delivery row holds no PII (content is rebuilt at
+  send time); `ON DELETE CASCADE` ties deliveries to their lead for erasure/retention.
+- **No new infra.** Postgres-as-queue via `FOR UPDATE SKIP LOCKED` + a scheduled drain;
+  no Redis/SQS/worker until a concrete throughput/fan-out/SLA signal appears.
+
+### Persistent NotificationDelivery schema (0002)
+`lead_notification_deliveries`: `id UUID PK`, `lead_id UUID NOT NULL` (FK →
+`leads(id) ON DELETE CASCADE`), `channel`, `purpose`, `provider`,
+`status` (`pending`/`processing`/`sent`/`failed`, CHECK), `attempts INT DEFAULT 0`,
+`next_attempt_at`, `last_attempt_at`, `last_error_class`, `provider_message_id`,
+`locked_at`, `locked_by`, `created_at`, `updated_at`. `UNIQUE (lead_id, channel,
+purpose)`. Partial indexes: `(next_attempt_at) WHERE status='pending'` and
+`(locked_at) WHERE status='processing'`, plus `(lead_id)`. NO PII columns.
+
+### 2E-1 scope (implemented)
+Migration `0002`; persistent delivery types + repository port + Postgres/memory impls
++ mapping; the `SqlExecutor.transaction` Unit of Work; the atomic lead + intent
+transaction in the service; intent idempotency; PII-free observability. **Not yet:**
+retry/backoff, claiming, scheduler/drain, provider SDK, real-send changes, retention,
+CRM, admin, queue. The Phase 2D best-effort first-attempt path is unchanged.

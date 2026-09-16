@@ -38,4 +38,16 @@ export class InMemoryLeadRepository implements LeadRepository {
   size(): number {
     return this.byToken.size
   }
+
+  /** Opaque snapshot for Unit-of-Work rollback (Backend Phase 2E-1). */
+  snapshot(): { byToken: Map<string, Lead>; references: Set<string> } {
+    return { byToken: new Map(this.byToken), references: new Set(this.references) }
+  }
+
+  restore(snapshot: { byToken: Map<string, Lead>; references: Set<string> }): void {
+    this.byToken.clear()
+    for (const [k, v] of snapshot.byToken) this.byToken.set(k, v)
+    this.references.clear()
+    for (const r of snapshot.references) this.references.add(r)
+  }
 }
