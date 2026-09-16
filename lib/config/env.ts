@@ -49,6 +49,13 @@ const secret = z
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined))
 
+/** A plain optional string (not a secret): trimmed, `undefined` when unset/empty. */
+const optionalString = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+
 const schema = z.object({
   // Market mode (retired the single global live-provider gate). "registry" =
   // normal per-benchmark routing via the BenchmarkRegistry + ProviderRouter;
@@ -67,6 +74,31 @@ const schema = z.object({
   // false: without it the derived client identity is best-effort and spoofable
   // (documented), and reliable per-client limiting depends on the edge layer.
   rateLimitTrustProxy: boolFromEnv.catch(false),
+  // Lead persistence store (Backend Phase 2C). "memory" = in-memory (ephemeral,
+  // dev/test only); "postgres" = durable managed PostgreSQL. Default "memory".
+  // Production fails closed unless a durable store is selected AND configured —
+  // there is never a silent fallback from postgres to memory.
+  leadStore: selector("LEAD_STORE", ["memory", "postgres"], "memory"),
+  // PostgreSQL connection string (server-only; never logged, never client-exposed).
+  databaseUrl: secret,
+  // TLS mode for the DB connection. "require" verifies TLS (recommended in prod);
+  // "disable" only for a local non-TLS dev database.
+  databaseSsl: selector("DATABASE_SSL", ["require", "disable"], "require"),
+  // Email notification (Backend Phase 2D). "none" = intentionally disabled (the
+  // only value that operates today); the log notification provider still records
+  // deliveries. "ses"/"resend" are recognised for forward-compat but have NO
+  // transport adapter yet, so selecting them fails LOUDLY (never silently disabled)
+  // — see lib/leads/notification/email/factory.ts. Sender/recipient are validated
+  // only when a provider is actually selected (never required for "none").
+  emailProvider: selector("EMAIL_PROVIDER", ["none", "ses", "resend"], "none"),
+  // Verified OEML/system sender + configured trade-desk recipient. Server config
+  // only — lead-controlled input must NEVER influence from/to. Not secrets; still
+  // never logged as values. Required only once a real provider is selected.
+  emailFrom: optionalString,
+  emailTo: optionalString,
+  // Reply-to behaviour. "lead-email" sets reply-to to the lead's ALREADY-VALIDATED
+  // email (a structured field, never a manually built header); "disabled" omits it.
+  emailReplyTo: selector("EMAIL_REPLY_TO", ["disabled", "lead-email"], "disabled"),
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
@@ -118,6 +150,13 @@ export const serverConfig: ServerConfig = applyProductionHardening(
     marketSimulateFailure: process.env.MARKET_SIMULATE_FAILURE,
     botVerification: process.env.BOT_VERIFICATION,
     rateLimitTrustProxy: process.env.RATE_LIMIT_TRUST_PROXY,
+    leadStore: process.env.LEAD_STORE,
+    databaseUrl: process.env.DATABASE_URL,
+    databaseSsl: process.env.DATABASE_SSL,
+    emailProvider: process.env.EMAIL_PROVIDER,
+    emailFrom: process.env.EMAIL_FROM,
+    emailTo: process.env.EMAIL_TO,
+    emailReplyTo: process.env.EMAIL_REPLY_TO,
     metalPriceApiKey: process.env.METALPRICE_API_KEY,
     metalsDevApiKey: process.env.METALS_DEV_API_KEY,
     eiaApiKey: process.env.EIA_API_KEY,

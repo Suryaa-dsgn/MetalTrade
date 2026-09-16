@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "secret-scan": "node scripts/secret-scan.mjs",
-    "audit:prod": "npm audit --omit=dev"
+    "audit:prod": "npm audit --omit=dev",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -20,6 +21,7 @@
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.6",
     "next": "16.3.4",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.87.0",
@@ -30,8 +32,10 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
