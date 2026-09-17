@@ -9,9 +9,12 @@ import type {
   FetchLatestResult,
   ProviderBenchmarkRequest,
   ProviderErrorCode,
+  ProviderHistoryRequest,
+  ProviderHistoryResult,
   RawQuote,
 } from "@/lib/market/providers/types"
 import { ProviderError } from "@/lib/market/providers/types"
+import type { HistoryPoint } from "@/lib/market/types"
 
 /*
   U.S. EIA (Energy Information Administration) live provider adapter.
@@ -34,7 +37,12 @@ import { ProviderError } from "@/lib/market/providers/types"
 */
 
 const BASE_URL = "https://api.eia.gov/v2/petroleum/pri/spt/data/"
-const REQUEST_TIMEOUT_MS = 8_000
+// Latest-quote request timeout (unchanged; the latest path is fast + tiny).
+export const REQUEST_TIMEOUT_MS = 8_000
+// History requests pull a larger daily series (up to ~260 rows for 1Y) and are
+// consistently slower than the latest quote, so they get their OWN, longer timeout.
+// Specific to EIA history — no other provider/path is affected.
+export const HISTORY_REQUEST_TIMEOUT_MS = 15_000
 
 const RowSchema = z.object({
   period: z.string(),
@@ -94,9 +102,36 @@ function buildUrl(symbols: string[], apiKey: string): string {
   return `${BASE_URL}?${sp.toString()}`
 }
 
-async function getPayload(url: string): Promise<EiaResponse> {
+// Upper bound on rows for a daily series over up to ~1Y (≈260 trading days). One
+// page is enough; EIA caps `length` at 5000.
+const HISTORY_MAX_ROWS = 500
+
+function buildHistoryUrl(
+  symbol: string,
+  apiKey: string,
+  startDate: string,
+  endDate: string
+): string {
+  const sp = new URLSearchParams()
+  sp.set("frequency", "daily")
+  sp.append("data[0]", "value")
+  sp.append("facets[series][]", symbol)
+  sp.set("start", startDate)
+  sp.set("end", endDate)
+  // Ascending by period so the chart renders left→right without a client sort.
+  sp.set("sort[0][column]", "period")
+  sp.set("sort[0][direction]", "asc")
+  sp.set("length", String(HISTORY_MAX_ROWS))
+  sp.set("api_key", apiKey)
+  return `${BASE_URL}?${sp.toString()}`
+}
+
+async function getPayload(
+  url: string,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
+): Promise<EiaResponse> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   let res: Response
   try {
     res = await fetch(url, {
@@ -135,9 +170,8 @@ async function getPayload(url: string): Promise<EiaResponse> {
 export const eiaProvider: BenchmarkProvider = {
   id: "eia",
   sourceType: "live",
-  // History (RBRTE daily series) is available and can be added through this same
-  // contract when the Crude chart experience is built; not fetched yet.
-  capabilities: { latest: true, history: false },
+  // Latest quote + daily RBRTE history (both via the same verified contract).
+  capabilities: { latest: true, history: true },
 
   isConfigured() {
     return !!serverConfig.eiaApiKey
@@ -185,5 +219,47 @@ export const eiaProvider: BenchmarkProvider = {
     })
 
     return { quotes, retrievedAt }
+  },
+
+  async getHistory(
+    request: ProviderHistoryRequest
+  ): Promise<ProviderHistoryResult> {
+    const retrievedAt = new Date().toISOString()
+    const apiKey = serverConfig.eiaApiKey
+    if (!apiKey) throw new ProviderError("auth", "EIA_API_KEY is not set")
+
+    const body = await getPayload(
+      buildHistoryUrl(
+        request.providerSymbol,
+        apiKey,
+        request.startDate,
+        request.endDate
+      ),
+      HISTORY_REQUEST_TIMEOUT_MS
+    )
+    const rows = body.response?.data ?? []
+
+    // Validate every observation; skip (never fabricate) malformed/missing rows.
+    // Non-trading days simply aren't returned by EIA, so gaps are natural.
+    const points: HistoryPoint[] = []
+    for (const row of rows) {
+      if (row.series !== request.providerSymbol) continue // series must be RBRTE
+      if (unitFrom(row.units) !== "bbl") continue // unit must be $/BBL
+      const timestamp = toIsoDate(row.period) // valid period/date
+      if (!timestamp) continue
+      const value = typeof row.value === "string" ? Number(row.value) : row.value
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue
+      points.push({ timestamp, value })
+    }
+    // Ascending by time (defensive — EIA is asked for asc, but never assume).
+    points.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
+
+    logger.info("market.provider.history_ok", {
+      provider: "eia",
+      series: request.providerSymbol,
+      returned: points.length,
+    })
+
+    return { benchmarkId: request.benchmarkId, points, unit: "bbl", retrievedAt }
   },
 }

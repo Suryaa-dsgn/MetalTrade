@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type {
   ChartRange,
+  DataProvenance,
   HistoryPoint,
   HistoryState,
   MarketQuote,
@@ -57,6 +58,9 @@ export function MetalMarketPanel({
   supportedRanges,
   historySet,
   forcedHistoryState,
+  provenance,
+  benchmarkLabel,
+  sourceLabel,
 }: {
   quote: MarketQuote
   provider: string
@@ -64,6 +68,10 @@ export function MetalMarketPanel({
   supportedRanges: ChartRange[]
   historySet: Partial<Record<ChartRange, HistoryPoint[]>>
   forcedHistoryState?: HistoryState
+  /** Provenance of the CHART data + its labels (never hard-coded to Copper/sample). */
+  provenance: DataProvenance
+  benchmarkLabel: string
+  sourceLabel: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -198,17 +206,22 @@ export function MetalMarketPanel({
           unit={unitLabel}
           lastUpdatedLabel={lastUpdatedLabel}
           onRetry={() => router.replace(pathname, { scroll: false })}
+          provenance={provenance}
+          benchmarkLabel={benchmarkLabel}
+          sourceLabel={sourceLabel}
         />
         <ChartDataTable
           series={displaySeries}
           currency={quote.currency}
           unit={unitLabel}
-          range={range}
+          caption={`${benchmarkLabel}, ${range} range${
+            provenance === "sample" ? " (indicative sample data)" : ""
+          }`}
         />
       </div>
 
       {/* Statistics */}
-      <MarketStatistics statistics={statistics} unit={unit} />
+      <MarketStatistics statistics={statistics} unit={unit} provenance={provenance} />
     </div>
   )
 }

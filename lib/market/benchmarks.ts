@@ -381,7 +381,7 @@ export const BENCHMARKS: Record<string, BenchmarkConfig> = {
     canonicalUnit: "bbl",
     currency: "USD",
     freshnessPolicy: FRESHNESS_PRESETS.dailyBenchmark, // daily, may lag; not real-time
-    historyCapable: false, // real Brent history available but Crude chart UI deferred
+    historyCapable: true, // live RBRTE daily history via EIA (30D/90D/1Y)
     unitVerified: true, // verified live: RBRTE ≈ 109.51 USD/bbl
     sanityBand: [20, 200], // broad defensive band, USD/bbl
     attribution: EIA_ATTRIBUTION,

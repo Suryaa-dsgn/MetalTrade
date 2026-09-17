@@ -744,3 +744,90 @@ A **platform scheduler** for the drain route is still not wired (deployment unde
 and durable Postgres lead storage still needs provisioning (§ activation checklist).
 Live email requires a real `RESEND_API_KEY` + verified sender; until then the pipeline
 is exercised end-to-end with a mocked SDK in tests and produces no live mail.
+
+---
+
+## 24. CURRENT LIVE FLOW — email-only lead delivery (no database)
+
+This is the flow the deployed app actually runs today. It supersedes the persist-first
+outbox as the LIVE path; the outbox machinery (§20–§23) remains in the repo but is
+**dormant** (not called by the Contact action) and is the intended home for a future
+DB/CRM sink.
+
+```
+Visitor
+→ OEML Contact form (unchanged UX)
+→ submitContactEnquiry (Next.js Server Action)
+→ rate limit + bot seam + correlation ID
+→ Zod (bounded, strict, conditional) re-validation
+→ submissionToken validated (UUID-shaped) → used as the Resend idempotency key
+→ buildLead(...) normalizes to a Lead-shaped object (IN MEMORY, not persisted)
+→ ContactEnquiryEmailSink.deliver(lead) → buildLeadEmail → Resend
+→ client trade-desk inbox receives the full lead
+→ success shown ONLY after Resend accepts (returns the public OEML reference)
+```
+
+### Sink selection (`lib/enquiries/email/sink.ts`)
+`getContactEnquiryEmailSink()` mirrors the EnquirySink pattern:
+- fully configured (`RESEND_API_KEY` + `ENQUIRY_EMAIL_FROM` + `ENQUIRY_EMAIL_TO`) →
+  **`resendEnquiryEmailSink`** (real send, reusing `createResendTransport` +
+  `sendWithTimeout` + `buildLeadEmail` — one email pipeline);
+- unconfigured + **production** → **`unavailableEnquiryEmailSink`** (fail closed —
+  returns a not_configured failure, a loud `enquiry.email.not_configured` log, and
+  NEVER a fake success);
+- unconfigured + **development/test** → **`logEnquiryEmailSink`** (records safe
+  metadata, reports success, sends nothing).
+
+### From / To / Reply-To (trust boundary)
+- **From** = verified Resend sender from `ENQUIRY_EMAIL_FROM` (e.g.
+  `OEML Enquiries <enquiries@client-domain.com>`) — keeps SPF/DKIM/DMARC valid.
+- **To** = `ENQUIRY_EMAIL_TO` (the client trade-desk inbox).
+- **Reply-To** = the submitter's validated email when
+  `ENQUIRY_EMAIL_REPLY_TO_MODE=lead-email` (default), so the desk can press Reply. The
+  submitter email is NEVER From or To.
+
+### Email content
+`buildLeadEmail` produces a subject that names the enquiry type
+(`New OEML Supply Enquiry — Copper (cathode)`, `New OEML General Enquiry`) and a
+plain-text + email-safe HTML body grouped into **ENQUIRY / CONTACT / REQUIREMENT**
+sections, rendering only fields present, every lead value HTML-escaped, no remote
+images/JS/tracking. No customer auto-reply is sent (internal notification only).
+
+### Failure / success / idempotency
+Resend errors are classified (`temporary` / `permanent` / `not_configured`) and never
+surfaced raw; the user sees one generic "We couldn't send your enquiry right now.
+Please try again." A bounded `sendWithTimeout` caps the request. The client hook holds
+one `submissionToken` per form lifecycle (guards double-submit) and it is forwarded as
+Resend's idempotency key, so an accidental resend is de-duplicated by the provider —
+no DB idempotency. Success (and the OEML reference) is returned only after Resend
+accepts. Logs are PII-free (reference, enquiryType, provider, providerMessageId,
+failureClass — never name/email/phone/message/body/recipient/API key).
+
+### Current limitation (accepted for this phase)
+**There is no persistent lead database/CRM.** The client's mailbox is the sole lead
+store. If a notification email is deleted or lost, the application retains no lead
+history. This is a deliberate trade-off to ship without infrastructure.
+
+### Future (behind the same seam, no form changes)
+Add a `DatabaseLeadSink` (re-attaching the dormant §20–§23 outbox) and/or a
+`FutureCRMSink` alongside `resendEnquiryEmailSink`; the Contact form and action do not
+change. A durable store re-introduces retained lead history + the persist-first
+success boundary if/when that is approved.
+
+### Production setup in Resend (before launch)
+1. Create/use the **client's** Resend account (client owns it — see §23 handover).
+2. Verify the client's **sending domain** in Resend.
+3. Add the DNS records Resend requests: **SPF**, **DKIM**, and a recommended **DMARC**
+   policy (this repo makes no DNS changes).
+4. Use a verified sender, e.g. `ENQUIRY_EMAIL_FROM="OEML Enquiries
+   <enquiries@client-domain.com>"`.
+5. Set the destination, e.g. `ENQUIRY_EMAIL_TO=sales@client-domain.com`.
+6. Set `RESEND_API_KEY` securely on the production host (never committed; rotate any
+   developer key at handover).
+7. Host-agnostic — works on any Node/Next.js host (AWS, Vercel, Cloudflare, …).
+
+### Safe local test
+`npm run email:test` sends one clearly-labeled connectivity email via Resend using the
+configured env (refuses production, recipient from `ENQUIRY_EMAIL_TO`/`EMAIL_TO`, never
+prints the key). Configure `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, and a
+Resend-verified `EMAIL_FROM`/`EMAIL_TO` (or the `ENQUIRY_EMAIL_*` equivalents) first.

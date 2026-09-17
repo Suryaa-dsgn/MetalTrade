@@ -14,7 +14,12 @@ import { deriveClientKey } from "@/lib/security/client-identity"
 import { getBotVerifier } from "@/lib/security/bot-verification"
 import { logger } from "@/lib/observability/logger"
 import { newCorrelationId } from "@/lib/observability/correlation"
-import { submitLead } from "@/lib/leads/service"
+import { buildLead } from "@/lib/leads/normalize"
+import { newInternalId, newPublicReference } from "@/lib/leads/reference"
+import {
+  getContactEnquiryEmailSink,
+  type ContactEnquiryEmailSink,
+} from "@/lib/enquiries/email/sink"
 import {
   isValidSubmissionToken,
   tokenFingerprint,
@@ -126,23 +131,31 @@ export async function submitEnquiry(
   return { ok: true, referenceId }
 }
 
-/*
-  Unified Contact submission (Backend Phase 2A). Same server-side security as
-  submitEnquiry — rate limit + bot seam + correlation IDs + redacted logging — which
-  all run BEFORE the lead pipeline. After validation, the payload is handed to the
-  LeadSubmissionService, which normalizes it, persists the Lead (the success
-  boundary), and notifies via the log provider. Persistence — NOT notification —
-  determines success. Storage is in-memory only in this phase (no database, no
-  email/CRM); the success UI still notes that live delivery / persistent storage is
-  not connected yet.
+export type SubmitContactDeps = {
+  /** Injected email sink (default: config/environment-selected). */
+  sink?: ContactEnquiryEmailSink
+  /** Injected production flag (default: NODE_ENV). Steers the not-configured path. */
+  isProduction?: boolean
+}
 
-  The submissionToken is CLIENT-generated (Phase 2B) and treated as untrusted input:
-  it is validated (UUID-shaped, length-bounded) and only ever logged as a short
-  fingerprint, never raw. It is the idempotency key for atomic create-or-return.
+/*
+  Unified Contact submission — CURRENT lead flow (email-only, NO database). Same
+  server-side security as before (rate limit + bot seam + correlation IDs + redacted
+  logging + bounded/strict Zod), all BEFORE any delivery. After validation the payload
+  is normalized into a Lead-shaped object (in memory, NOT persisted) and delivered to
+  the client inbox via the Resend email sink. Delivery success — Resend accepting the
+  request — IS the submission success boundary (there is no persistent lead store in
+  this phase; a DB/CRM sink can be added later behind the same seam).
+
+  The submissionToken is CLIENT-generated and untrusted: validated (UUID-shaped,
+  bounded), only ever logged as a fingerprint, and forwarded as the provider
+  idempotency key so an accidental double-submit is de-duplicated by Resend. No DB
+  idempotency is added in this phase.
 */
 export async function submitContactEnquiry(
   values: unknown,
-  submissionToken: unknown
+  submissionToken: unknown,
+  deps: SubmitContactDeps = {}
 ): Promise<EnquiryResult> {
   const correlationId = newCorrelationId()
 
@@ -156,7 +169,7 @@ export async function submitContactEnquiry(
   )
   const decision = enquiryRateLimiter.check(`contact:${client.key}`)
   if (!decision.allowed) {
-    logger.warn("lead.submission.rejected", {
+    logger.warn("enquiry.submission.rejected", {
       correlationId,
       reason: "rate_limit",
       trusted: client.trusted,
@@ -171,7 +184,7 @@ export async function submitContactEnquiry(
 
   const bot = await getBotVerifier().verify(null)
   if (!bot.ok) {
-    logger.warn("lead.submission.rejected", { correlationId, reason: "bot" })
+    logger.warn("enquiry.submission.rejected", { correlationId, reason: "bot" })
     return {
       ok: false,
       kind: "submission",
@@ -182,7 +195,7 @@ export async function submitContactEnquiry(
   // Server-side re-validation (authoritative): bounded, strict, conditional.
   const parsed = contactEnquirySchema.safeParse(values)
   if (!parsed.success) {
-    logger.warn("lead.submission.rejected", { correlationId, reason: "validation" })
+    logger.warn("enquiry.submission.rejected", { correlationId, reason: "validation" })
     const fieldErrors: Record<string, string> = {}
     for (const issue of parsed.error.issues) {
       const key = issue.path[0]
@@ -196,7 +209,7 @@ export async function submitContactEnquiry(
   // Validate the untrusted idempotency token (UUID-shaped, bounded). Log only a
   // fingerprint, never the raw token.
   if (!isValidSubmissionToken(submissionToken)) {
-    logger.warn("lead.submission.rejected", {
+    logger.warn("enquiry.submission.rejected", {
       correlationId,
       reason: "invalid_token",
       tokenFingerprint:
@@ -208,28 +221,49 @@ export async function submitContactEnquiry(
       ok: false,
       kind: "submission",
       message:
-        "We couldn't submit your enquiry just now. Please try again in a moment.",
+        "We couldn't send your enquiry right now. Please try again.",
     }
   }
 
-  // Persist the lead (system of record). Success is determined here, not by
-  // notification. In production an ephemeral store fails closed (see submitLead).
-  const result = await submitLead(parsed.data, {
+  // Normalize into a Lead-shaped object (NOT persisted) so the email content builder
+  // and the future DB/CRM sinks share one shape. The public reference is the human
+  // enquiry id shown to the user and in the email.
+  const now = new Date()
+  const lead = buildLead(parsed.data, {
+    id: newInternalId(),
+    reference: newPublicReference(now),
+    now: now.toISOString(),
     submissionToken,
-    correlationId,
     source: "contact-form",
   })
 
-  if (!result.ok) {
-    return {
-      ok: false,
-      kind: "submission",
-      message:
-        result.reason === "unavailable"
-          ? "We couldn't submit your enquiry right now. Please try again later."
-          : "We couldn't submit your enquiry just now. Please try again in a moment.",
-    }
+  logger.info("enquiry.submission.started", {
+    correlationId,
+    enquiryType: lead.enquiryType,
+    commodity: lead.commodity,
+  })
+
+  // Deliver to the client inbox. Success is shown ONLY after the provider accepts.
+  const sink = deps.sink ?? getContactEnquiryEmailSink({ isProduction: deps.isProduction })
+  const outcome = await sink.deliver(lead, {
+    correlationId,
+    idempotencyKey: submissionToken,
+  })
+
+  if (outcome.ok) {
+    logger.info("enquiry.submitted", {
+      correlationId,
+      enquiryType: lead.enquiryType,
+      reference: lead.reference,
+      sink: sink.name,
+    })
+    return { ok: true, referenceId: lead.reference }
   }
 
-  return { ok: true, referenceId: result.lead.reference }
+  // Never surface the provider/config detail to the user; one safe generic message.
+  return {
+    ok: false,
+    kind: "submission",
+    message: "We couldn't send your enquiry right now. Please try again.",
+  }
 }

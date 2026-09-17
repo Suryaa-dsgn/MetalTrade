@@ -1,4 +1,5 @@
 import type { ProviderId } from "@/lib/market/benchmarks"
+import type { HistoryPoint } from "@/lib/market/types"
 
 /*
   Contract for a benchmark provider (live OR sample). Deliberately narrow and
@@ -71,6 +72,24 @@ export type FetchLatestResult = {
   quota?: { limit?: number; used?: number }
 }
 
+/** A history request for ONE benchmark over an inclusive date window (dates are
+ *  YYYY-MM-DD, UTC). The service computes the window from the chart range. */
+export type ProviderHistoryRequest = {
+  benchmarkId: string
+  providerSymbol: string
+  startDate: string
+  endDate: string
+}
+
+/** History for one benchmark, validated by the adapter and ASCENDING by time. */
+export type ProviderHistoryResult = {
+  benchmarkId: string
+  points: HistoryPoint[]
+  /** Canonical unit the points are denominated in (e.g. "bbl"). */
+  unit: string
+  retrievedAt: string
+}
+
 /** Declared capabilities — checked before use, so we never call an unsupported
  *  method or rely on a thrown "not supported". */
 export type ProviderCapabilityFlags = {
@@ -90,5 +109,8 @@ export interface BenchmarkProvider {
   /** Fetch raw quotes for the given requests. Throws `ProviderError` (typed) on a
    *  whole-request failure; never returns fabricated or zero values. */
   getLatest(requests: ProviderBenchmarkRequest[]): Promise<FetchLatestResult>
-  // getHistory is added with the history-routing phase (registry historyProvider).
+  /** Fetch validated, ascending history for one benchmark over a date window.
+   *  Present only when `capabilities.history` is true. Throws `ProviderError` on a
+   *  whole-request failure; skips (never fabricates) malformed/missing observations. */
+  getHistory?(request: ProviderHistoryRequest): Promise<ProviderHistoryResult>
 }

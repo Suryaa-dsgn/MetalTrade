@@ -12,7 +12,12 @@ import {
 } from "recharts"
 
 import { cn } from "@/lib/utils"
-import type { ChartRange, HistoryPoint, HistoryState } from "@/lib/market/types"
+import type {
+  ChartRange,
+  DataProvenance,
+  HistoryPoint,
+  HistoryState,
+} from "@/lib/market/types"
 import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 import { Button } from "@/components/ui/button"
 import { Body, H4 } from "@/components/ui/typography"
@@ -21,12 +26,13 @@ import { Body, H4 } from "@/components/ui/typography"
   Historical price chart (Design System §13). Single restrained cobalt line
   (~2px), 1px low-contrast grid, muted tabular axes, one tooltip. A very subtle
   cobalt area fade sits BEHIND the grid for atmospheric depth (never a solid
-  block); no glow / permanent dots / decorative animation. DEVELOPMENT FIXTURE —
-  visibly labelled as indicative sample, never mistakable for real Copper history.
+  block); no glow / permanent dots / decorative animation.
 
-  Understandable without hover via the benchmark text, range controls, textual
-  freshness, and the data-table alternative — the tooltip is only an enhancement
-  (amendment 8).
+  PROVENANCE-DRIVEN LABELS: the benchmark/source labels are passed in, never
+  hard-coded. Real live data (e.g. EIA Brent) shows its own benchmark + source and
+  is NEVER labelled "sample"; the "indicative sample data" note appears only for
+  sample-provenance data. Understandable without hover via the benchmark text, range
+  controls, textual freshness, and the data-table alternative (amendment 8).
 */
 const CHART_HEIGHT = "h-[300px] sm:h-[360px]"
 
@@ -45,11 +51,17 @@ function ChartTooltip({
   payload,
   currency,
   unit,
+  benchmarkLabel,
+  sourceLabel,
+  provenance,
 }: {
   active?: boolean
   payload?: Array<{ payload: HistoryPoint }>
   currency: string
   unit: string
+  benchmarkLabel: string
+  sourceLabel: string
+  provenance: DataProvenance
 }) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload
@@ -68,8 +80,13 @@ function ChartTooltip({
         </span>
       </div>
       <div className="text-label uppercase tracking-label text-muted-foreground">
-        Copper benchmark · sample
+        {benchmarkLabel}
       </div>
+      {provenance === "live" && sourceLabel ? (
+        <div className="text-label uppercase tracking-label text-muted-foreground">
+          {sourceLabel}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -112,6 +129,9 @@ export function PriceChart({
   unit,
   lastUpdatedLabel,
   onRetry,
+  provenance,
+  benchmarkLabel,
+  sourceLabel,
 }: {
   series: HistoryPoint[]
   range: ChartRange
@@ -120,18 +140,23 @@ export function PriceChart({
   unit: string
   lastUpdatedLabel: string
   onRetry?: () => void
+  provenance: DataProvenance
+  benchmarkLabel: string
+  sourceLabel: string
 }) {
-  const sampleTag = (
+  // Provenance-driven source note. Live → its own attribution (e.g. EIA); sample →
+  // the indicative-sample disclaimer; unavailable → nothing.
+  const footerNote = sourceLabel ? (
     <p className="mt-2 text-label uppercase tracking-label text-muted-foreground">
-      Indicative sample data · not historical or live market data
+      {sourceLabel}
     </p>
-  )
+  ) : null
 
   if (state === "loading") {
     return (
       <div>
         <SkeletonGrid />
-        {sampleTag}
+        {footerNote}
       </div>
     )
   }
@@ -141,7 +166,7 @@ export function PriceChart({
       <div>
         <ChartFrame>
           <div>
-            <H4 as="p">Chart data could not be loaded</H4>
+            <H4 as="p">Historical data temporarily unavailable</H4>
             <Body className="mx-auto mt-2 text-muted-foreground">
               Historical data for the {range} range did not load. Last known
               update: {lastUpdatedLabel}.
@@ -155,7 +180,7 @@ export function PriceChart({
             ) : null}
           </div>
         </ChartFrame>
-        {sampleTag}
+        {footerNote}
       </div>
     )
   }
@@ -165,10 +190,10 @@ export function PriceChart({
       <div>
         <ChartFrame>
           <Body className="text-muted-foreground">
-            No historical data is available for the {range} range.
+            Historical data temporarily unavailable.
           </Body>
         </ChartFrame>
-        {sampleTag}
+        {footerNote}
       </div>
     )
   }
@@ -240,7 +265,15 @@ export function PriceChart({
               axisLine={false}
             />
             <Tooltip
-              content={<ChartTooltip currency={currency} unit={unit} />}
+              content={
+                <ChartTooltip
+                  currency={currency}
+                  unit={unit}
+                  benchmarkLabel={benchmarkLabel}
+                  sourceLabel={sourceLabel}
+                  provenance={provenance}
+                />
+              }
               cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }}
             />
             <Line
@@ -255,7 +288,7 @@ export function PriceChart({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {sampleTag}
+      {footerNote}
     </div>
   )
 }

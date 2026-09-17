@@ -103,10 +103,23 @@ const schema = z.object({
   // 2E-3). Server-only; never logged, never client-exposed, never in a query string.
   // When unset, the drain endpoint rejects every request (fail closed).
   notificationDrainSecret: secret,
-  // Resend API key — required when EMAIL_PROVIDER=resend. Server-only secret; never
-  // logged, never client-exposed, never returned from a route. When missing under a
-  // resend selection, the transport factory fails loudly (no silent fallback).
+  // Resend API key — required to send enquiry email (and by EMAIL_PROVIDER=resend).
+  // Server-only secret; never logged, never client-exposed, never returned from a
+  // route. Without it the enquiry email sink is unavailable (fail closed in prod).
   resendApiKey: secret,
+  // Enquiry email delivery (current lead flow: no database — the client inbox is the
+  // lead destination). Verified Resend sender + trade-desk recipient. Server config
+  // only — a lead's own email NEVER becomes From/To. Required (with RESEND_API_KEY)
+  // for the email sink to operate; otherwise it is unavailable (prod) / dev-log (dev).
+  enquiryEmailFrom: optionalString,
+  enquiryEmailTo: optionalString,
+  // Whether the submitter's validated email becomes Reply-To. Default "lead-email"
+  // (the desk can press Reply). "none" omits Reply-To. Never affects From/To.
+  enquiryReplyToMode: selector(
+    "ENQUIRY_EMAIL_REPLY_TO_MODE",
+    ["lead-email", "none"],
+    "lead-email"
+  ),
   // Provider secrets. Read server-side only; never exported to callers, never
   // logged, never sent to the client.
   metalPriceApiKey: secret,
@@ -167,6 +180,9 @@ export const serverConfig: ServerConfig = applyProductionHardening(
     emailReplyTo: process.env.EMAIL_REPLY_TO,
     notificationDrainSecret: process.env.NOTIFICATION_DRAIN_SECRET,
     resendApiKey: process.env.RESEND_API_KEY,
+    enquiryEmailFrom: process.env.ENQUIRY_EMAIL_FROM,
+    enquiryEmailTo: process.env.ENQUIRY_EMAIL_TO,
+    enquiryReplyToMode: process.env.ENQUIRY_EMAIL_REPLY_TO_MODE,
     metalPriceApiKey: process.env.METALPRICE_API_KEY,
     metalsDevApiKey: process.env.METALS_DEV_API_KEY,
     eiaApiKey: process.env.EIA_API_KEY,

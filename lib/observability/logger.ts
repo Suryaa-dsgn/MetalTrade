@@ -11,6 +11,12 @@
   (key/secret/token/authorization/apiKey…) as a defence-in-depth measure, so an
   accidental `logger.info("x", { apiKey })` can never leak. Callers must still
   avoid passing secrets; this is a backstop, not a licence.
+
+  SINK ROUTING: each level goes to its OWN console method — error→console.error,
+  warn→console.warn, info/debug→console.log. Warnings must NOT go through
+  console.error: Next.js surfaces console.error as a development error overlay, so a
+  non-fatal warning (e.g. a single benchmark falling back) would look like an app
+  error in dev.
 */
 
 export type LogLevel = "debug" | "info" | "warn" | "error"
@@ -41,9 +47,12 @@ function emit(level: LogLevel, event: string, fields?: LogFields): void {
     ts: new Date().toISOString(),
     ...redact(fields),
   })
-  // This module is the single sanctioned sink for structured server logs.
-  if (level === "warn" || level === "error") {
+  // This module is the single sanctioned sink for structured server logs. Each
+  // level uses its matching console method (see SINK ROUTING above).
+  if (level === "error") {
     console.error(line)
+  } else if (level === "warn") {
+    console.warn(line)
   } else {
     console.log(line)
   }
