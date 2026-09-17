@@ -56,6 +56,48 @@ export const copperDetailContent: MetalDetailContent = {
   ],
 }
 
+/*
+  Brent Crude detail content. Same guardrail as Copper: specifications are
+  "Confirmed per enquiry" placeholders (never invented); applications and pricing
+  factors are general, educational facts about crude oil, not claims about the
+  client's offering. The chart is wired to REAL EIA Brent (RBRTE) history; the
+  `provider` label here is overridden by the service with the live EIA attribution.
+  Ranges: 30D / 90D / 1Y (1M / 3M / 1Y).
+*/
+export const crudeOilDetailContent: MetalDetailContent = {
+  slug: "crude-oil",
+  provider: "U.S. Energy Information Administration (EIA)",
+  supportedRanges: ["1M", "3M", "1Y"],
+  specifications: [
+    { label: "Grade", value: null, note: "Subject to transaction" },
+    { label: "API gravity", value: null },
+    { label: "Sulphur content", value: null },
+    { label: "Origin", value: null },
+    { label: "Delivery point", value: null },
+    { label: "Minimum order quantity", value: null },
+    { label: "Availability", value: null },
+    { label: "Inspection", value: null, note: "Coordinated where agreed" },
+    { label: "Documentation", value: null },
+    { label: "Incoterm", value: null, note: "Agreed per contract" },
+  ].map((f) => ({ ...f, value: f.value ?? enquiryPlaceholder })),
+  applications: [
+    "Transport fuels (petrol, diesel, jet fuel)",
+    "Heating and power generation",
+    "Petrochemical feedstock for plastics and chemicals",
+    "Lubricants and industrial oils",
+    "Bitumen and asphalt for construction",
+  ],
+  regionsNote: "Regions served are confirmed per transaction.",
+  pricingFactors: [
+    "OPEC+ supply policy and global production levels",
+    "Global demand and macroeconomic conditions",
+    "Crude quality (API gravity and sulphur content)",
+    "Freight, shipping, and destination logistics",
+    "Inventories, seasonality, and geopolitical risk",
+  ],
+}
+
 export const metalDetailContent: Record<string, MetalDetailContent> = {
   copper: copperDetailContent,
+  "crude-oil": crudeOilDetailContent,
 }

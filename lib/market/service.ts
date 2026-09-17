@@ -201,6 +201,121 @@ async function fallbackQuote(
   return { quote: unavailableQuote(cfg, name), degraded: true }
 }
 
+// --- live history (per chart range) ----------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000
+// Chart-range → lookback window. 30D / 90D / 1Y map to the existing ranges.
+const HISTORY_WINDOW_DAYS: Partial<Record<ChartRange, number>> = {
+  "1M": 30,
+  "3M": 90,
+  "1Y": 365,
+}
+
+// Separate cache entry per (benchmarkId, range) so 30D / 90D / 1Y never collide.
+const historyCache = new Map<
+  string,
+  { points: HistoryPoint[]; unit: string; at: number }
+>()
+
+/** Test-only: clear the per-range history cache. */
+export function resetHistoryCache(): void {
+  historyCache.clear()
+}
+
+function ymd(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+export type BenchmarkHistory = { points: HistoryPoint[]; unit: string }
+
+/**
+ * Live history for a history-capable LIVE benchmark over a chart range.
+ *   - returns `null` when the benchmark is not a live-history source (the caller
+ *     may then use sample history);
+ *   - returns `{ points: [] }` when live history applies but is empty/failed — the
+ *     chart shows "unavailable", NEVER sample and NEVER fabricated points.
+ * Reuses provider resilience: a per-range cache (min-fetch interval), single-flight
+ * coalescing, one bounded retry, the adapter's own timeout, and last-known-good.
+ * It deliberately does NOT trip the latest circuit breaker, so a history failure can
+ * never remove the latest price (requirement: latest and history are independent).
+ */
+export async function getBenchmarkHistory(
+  slug: string,
+  range: ChartRange,
+  now: Date = new Date()
+): Promise<BenchmarkHistory | null> {
+  const cfg = getBenchmark(slug)
+  const windowDays = HISTORY_WINDOW_DAYS[range]
+  if (
+    !cfg ||
+    cfg.routing !== "live" ||
+    !cfg.historyCapable ||
+    !cfg.provider ||
+    !cfg.providerSymbol ||
+    windowDays === undefined
+  ) {
+    return null
+  }
+
+  const provider = getProvider(cfg.provider)
+  if (
+    !provider ||
+    provider.sourceType !== "live" ||
+    !provider.capabilities.history ||
+    !provider.getHistory ||
+    !provider.isConfigured()
+  ) {
+    return null
+  }
+
+  const cacheKey = `${cfg.benchmarkId}:${range}`
+  const cached = historyCache.get(cacheKey)
+  if (cached && now.getTime() - cached.at < minFetchIntervalMs(provider.id)) {
+    logger.info("market.history.cache_hit", { benchmarkId: cfg.benchmarkId, range })
+    return { points: cached.points, unit: cached.unit }
+  }
+
+  const endDate = ymd(now)
+  const startDate = ymd(new Date(now.getTime() - windowDays * DAY_MS))
+  const symbol = cfg.providerSymbol
+  const getHistory = provider.getHistory
+
+  try {
+    const result = await coalesce(`history:${cacheKey}`, () =>
+      withSingleRetry(() =>
+        getHistory({
+          benchmarkId: cfg.benchmarkId,
+          providerSymbol: symbol,
+          startDate,
+          endDate,
+        })
+      )
+    )
+    if (result.points.length > 0) {
+      historyCache.set(cacheKey, {
+        points: result.points,
+        unit: result.unit,
+        at: now.getTime(),
+      })
+    }
+    logger.info("market.history.ok", {
+      benchmarkId: cfg.benchmarkId,
+      range,
+      points: result.points.length,
+    })
+    return { points: result.points, unit: result.unit }
+  } catch (err) {
+    logger.warn("market.history.failed", {
+      benchmarkId: cfg.benchmarkId,
+      range,
+      code: codeOf(err),
+    })
+    // Last-known-good for this range if present; else empty → chart unavailable.
+    if (cached) return { points: cached.points, unit: cached.unit }
+    return { points: [], unit: cfg.canonicalUnit }
+  }
+}
+
 // --- core resolution -------------------------------------------------------
 
 type PlanItem = {
@@ -454,12 +569,23 @@ export async function getMetalDetail(
   const price = quote?.price
   if (price == null) return { data: null, meta }
 
-  // Sample benchmarks use labelled sample history; a live history-capable
-  // benchmark would branch to its history provider (registry historyProvider).
-  const historySet =
-    quote?.source === "sample" && cfg?.historyCapable
-      ? getSampleHistory(slug, contentDetail.supportedRanges, price)
-      : {}
+  // A LIVE history-capable benchmark uses REAL provider history per supported
+  // range (never sample, never fabricated). A sample benchmark keeps labelled
+  // sample history. A failed/empty live range is simply omitted → the chart shows
+  // "unavailable" while the latest price + statistics stay visible.
+  let historySet: Partial<Record<ChartRange, HistoryPoint[]>> = {}
+  if (cfg?.routing === "live" && cfg.historyCapable && quote?.source === "live") {
+    const ranges = contentDetail.supportedRanges
+    const results = await Promise.all(
+      ranges.map((r) => getBenchmarkHistory(slug, r))
+    )
+    ranges.forEach((r, i) => {
+      const pts = results[i]?.points
+      if (pts && pts.length > 0) historySet[r] = pts
+    })
+  } else if (quote?.source === "sample" && cfg?.historyCapable) {
+    historySet = getSampleHistory(slug, contentDetail.supportedRanges, price)
+  }
 
   const series1D = historySet["1D"] ?? []
   const series1Y = historySet["1Y"] ?? series1D
@@ -474,7 +600,12 @@ export async function getMetalDetail(
 
   const detail: MetalDetail = {
     slug: contentDetail.slug,
-    provider: sourceLabel(quote?.source),
+    // A live benchmark shows its OWN attribution (e.g. EIA for Brent), not a
+    // hard-coded provider name. Sample/unavailable keep the generic labels.
+    provider:
+      quote?.source === "live" && cfg
+        ? `${cfg.displayName} reference benchmark · ${cfg.attribution.label}`
+        : sourceLabel(quote?.source),
     supportedRanges: contentDetail.supportedRanges,
     statistics,
     specifications: contentDetail.specifications,
