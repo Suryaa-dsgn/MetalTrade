@@ -151,8 +151,25 @@ export default async function MetalDetailPage({
     )
   }
 
-  // Full Copper template.
+  // Full detail template (Copper sample chart, or a live benchmark like Brent Crude).
   const { detail, historySet } = detailData
+
+  // Provenance-driven chart labels — passed down so the chart NEVER hard-codes a
+  // Copper/sample label. Live data shows its own benchmark + attribution; only
+  // sample-provenance data carries the indicative-sample note.
+  const chartProvenance = q.source ?? "unavailable"
+  const chartBenchmarkLabel =
+    chartProvenance === "live"
+      ? `${benchmark?.displayName ?? metal.name} reference benchmark`
+      : chartProvenance === "sample"
+        ? `${metal.name} benchmark · sample`
+        : `${metal.name} benchmark`
+  const chartSourceLabel =
+    chartProvenance === "live"
+      ? (benchmark?.attribution.label ?? "")
+      : chartProvenance === "sample"
+        ? "Indicative sample data · not historical or live market data"
+        : ""
   const sp = await searchParams
   const isDev = process.env.NODE_ENV !== "production"
   const raw = typeof sp.chart === "string" ? sp.chart : undefined
@@ -190,6 +207,9 @@ export default async function MetalDetailPage({
             supportedRanges={detail.supportedRanges}
             historySet={historySet}
             forcedHistoryState={forcedHistoryState}
+            provenance={chartProvenance}
+            benchmarkLabel={chartBenchmarkLabel}
+            sourceLabel={chartSourceLabel}
           />
         </div>
       </Section>

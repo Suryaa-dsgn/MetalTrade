@@ -214,4 +214,24 @@ describe("eiaProvider.getHistory", () => {
     const p = await importAdapter()
     await expect(p.getHistory!(HISTORY_REQ)).rejects.toMatchObject({ code: "auth" })
   })
+
+  it("maps an aborted (timed-out) history request to a timeout error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const e = new Error("aborted")
+        e.name = "AbortError"
+        throw e
+      })
+    )
+    const p = await importAdapter()
+    await expect(p.getHistory!(HISTORY_REQ)).rejects.toMatchObject({ code: "timeout" })
+  })
+
+  it("uses a dedicated 15s history timeout, leaving the 8s latest timeout unchanged", async () => {
+    const mod = await import("@/lib/market/providers/eia")
+    expect(mod.HISTORY_REQUEST_TIMEOUT_MS).toBe(15_000)
+    expect(mod.REQUEST_TIMEOUT_MS).toBe(8_000) // latest path unchanged
+    expect(mod.HISTORY_REQUEST_TIMEOUT_MS).toBeGreaterThan(mod.REQUEST_TIMEOUT_MS)
+  })
 })

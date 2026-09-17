@@ -109,6 +109,18 @@ describe("getBenchmarkHistory — caching + resilience", () => {
     expect(await svc.getBenchmarkHistory("gold", "1M", NOW)).toBeNull() // historyCapable:false
     expect(await svc.getBenchmarkHistory("copper", "1M", NOW)).toBeNull() // routing:sample
   })
+
+  it("returns empty on a history TIMEOUT and makes exactly one bounded retry", async () => {
+    const { svc, calls } = await freshService(async () => {
+      const e = new Error("aborted")
+      e.name = "AbortError" // → ProviderError("timeout"), which is retryable
+      throw e
+    })
+    const res = await svc.getBenchmarkHistory("crude-oil", "3M", NOW)
+    expect(res).toEqual({ points: [], unit: "bbl" })
+    // one bounded retry ⇒ two attempts, not more
+    expect(calls.filter((u) => u.includes("start=")).length).toBe(2)
+  })
 })
 
 describe("getMetalDetail — latest and history are independent", () => {
@@ -124,6 +136,20 @@ describe("getMetalDetail — latest and history are independent", () => {
     expect(data).not.toBeNull()
     expect(data!.detail.provider).toContain("U.S. Energy Information Administration")
     expect(Object.keys(data!.historySet)).toHaveLength(0) // chart unavailable
+  })
+
+  it("keeps the latest crude price when history TIMES OUT (chart unavailable only)", async () => {
+    const { svc } = await freshService(
+      routing(async () => {
+        const e = new Error("aborted")
+        e.name = "AbortError"
+        throw e
+      })
+    )
+    const { data } = await svc.getMetalDetail("crude-oil")
+    expect(data).not.toBeNull()
+    expect(data!.detail.provider).toContain("U.S. Energy Information Administration")
+    expect(Object.keys(data!.historySet)).toHaveLength(0) // chart unavailable, latest kept
   })
 
   it("wires real EIA history into the crude chart across all ranges (ascending)", async () => {

@@ -1,4 +1,4 @@
-import type { MetalStatistics } from "@/lib/market/types"
+import type { DataProvenance, MetalStatistics } from "@/lib/market/types"
 import { resolveDisplayUnit, type DisplayUnit } from "@/lib/market/units"
 import { formatPrice } from "@/lib/formatters"
 import { Label } from "@/components/ui/typography"
@@ -20,9 +20,12 @@ function convertValue(
 export function MarketStatistics({
   statistics,
   unit,
+  provenance,
 }: {
   statistics: MetalStatistics
   unit: DisplayUnit
+  /** Only sample-provenance statistics carry the "indicative sample data" note. */
+  provenance: DataProvenance
 }) {
   const { currency, unit: nativeUnit } = statistics
   const unitLabel = resolveDisplayUnit(
@@ -67,8 +70,10 @@ export function MarketStatistics({
         ))}
       </dl>
       <Label className="mt-3 block text-muted-foreground">
-        Volume and open interest are not shown for physical benchmarks. Values
-        are indicative sample data.
+        Volume and open interest are not shown for physical benchmarks.
+        {provenance === "sample"
+          ? " Values are indicative sample data."
+          : null}
       </Label>
     </div>
   )

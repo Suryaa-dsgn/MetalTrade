@@ -37,7 +37,12 @@ import type { HistoryPoint } from "@/lib/market/types"
 */
 
 const BASE_URL = "https://api.eia.gov/v2/petroleum/pri/spt/data/"
-const REQUEST_TIMEOUT_MS = 8_000
+// Latest-quote request timeout (unchanged; the latest path is fast + tiny).
+export const REQUEST_TIMEOUT_MS = 8_000
+// History requests pull a larger daily series (up to ~260 rows for 1Y) and are
+// consistently slower than the latest quote, so they get their OWN, longer timeout.
+// Specific to EIA history — no other provider/path is affected.
+export const HISTORY_REQUEST_TIMEOUT_MS = 15_000
 
 const RowSchema = z.object({
   period: z.string(),
@@ -121,9 +126,12 @@ function buildHistoryUrl(
   return `${BASE_URL}?${sp.toString()}`
 }
 
-async function getPayload(url: string): Promise<EiaResponse> {
+async function getPayload(
+  url: string,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
+): Promise<EiaResponse> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   let res: Response
   try {
     res = await fetch(url, {
@@ -226,7 +234,8 @@ export const eiaProvider: BenchmarkProvider = {
         apiKey,
         request.startDate,
         request.endDate
-      )
+      ),
+      HISTORY_REQUEST_TIMEOUT_MS
     )
     const rows = body.response?.data ?? []
 

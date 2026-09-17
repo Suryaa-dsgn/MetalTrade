@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react"
 
-import type { ChartRange, HistoryPoint } from "@/lib/market/types"
+import type { HistoryPoint } from "@/lib/market/types"
 import { formatPrice, formatUpdatedAtUTC } from "@/lib/formatters"
 import { ChevronDown, ChevronUp } from "@/components/ui/icon"
 
@@ -16,12 +16,13 @@ export function ChartDataTable({
   series,
   currency,
   unit,
-  range,
+  caption,
 }: {
   series: HistoryPoint[]
   currency: string
   unit: string
-  range: ChartRange
+  /** Provenance-aware caption (e.g. "Brent Crude reference benchmark, 1M range"). */
+  caption: string
 }) {
   const [open, setOpen] = useState(false)
   const id = useId()
@@ -50,7 +51,7 @@ export function ChartDataTable({
         >
           <table className="w-full border-collapse text-body-s">
             <caption className="px-4 py-2 text-left text-label uppercase tracking-label text-muted-foreground">
-              Copper benchmark, {range} range (indicative sample data)
+              {caption}
             </caption>
             <thead>
               <tr className="border-y border-border bg-surface-muted">

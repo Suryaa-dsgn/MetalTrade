@@ -280,15 +280,26 @@ export async function getBenchmarkHistory(
   const symbol = cfg.providerSymbol
   const getHistory = provider.getHistory
 
+  // Timing instrumentation (no secrets): range, wall-clock durationMs (covers the
+  // one bounded retry), success/failure, and returned point count.
+  let retried = false
+  const startedAt = Date.now()
   try {
     const result = await coalesce(`history:${cacheKey}`, () =>
-      withSingleRetry(() =>
-        getHistory({
-          benchmarkId: cfg.benchmarkId,
-          providerSymbol: symbol,
-          startDate,
-          endDate,
-        })
+      withSingleRetry(
+        () =>
+          getHistory({
+            benchmarkId: cfg.benchmarkId,
+            providerSymbol: symbol,
+            startDate,
+            endDate,
+          }),
+        {
+          onRetry: (code) => {
+            retried = true
+            logger.warn("market.history.retry", { benchmarkId: cfg.benchmarkId, range, code })
+          },
+        }
       )
     )
     if (result.points.length > 0) {
@@ -301,13 +312,20 @@ export async function getBenchmarkHistory(
     logger.info("market.history.ok", {
       benchmarkId: cfg.benchmarkId,
       range,
+      durationMs: Date.now() - startedAt,
+      success: true,
       points: result.points.length,
+      retried,
     })
     return { points: result.points, unit: result.unit }
   } catch (err) {
     logger.warn("market.history.failed", {
       benchmarkId: cfg.benchmarkId,
       range,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      points: 0,
+      retried,
       code: codeOf(err),
     })
     // Last-known-good for this range if present; else empty → chart unavailable.
