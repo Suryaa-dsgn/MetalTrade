@@ -38,6 +38,22 @@ const ENQUIRY_TYPE_LABELS: Record<ContactEnquiryType, string> = {
   partnership: "Partnership",
 }
 
+/** Subject-line phrase per enquiry type (controlled). */
+const ENQUIRY_SUBJECT_LABELS: Record<ContactEnquiryType, string> = {
+  buy: "Buying Requirement",
+  supply: "Supply Enquiry",
+  logistics: "Logistics Enquiry",
+  general: "General Enquiry",
+  partnership: "Partnership Enquiry",
+}
+
+/** Enquiry types whose subject carries the commodity (when one was provided). */
+const COMMODITY_IN_SUBJECT: ReadonlySet<ContactEnquiryType> = new Set<ContactEnquiryType>([
+  "buy",
+  "supply",
+  "logistics",
+])
+
 /** slug → catalogue display name (e.g. "copper" → "Copper (cathode)"). Static,
  *  deterministic; no env access. */
 const COMMODITY_LABELS = new Map(metalOptions.map((o) => [o.value, o.label]))
@@ -51,66 +67,99 @@ function resolveCommodityLabel(commodity: string | undefined): string | undefine
   return COMMODITY_LABELS.get(value) ?? value
 }
 
-/** Subject uses only controlled values — no name/email/company/message (point 7). */
+/** Subject uses only controlled values — no name/email/company/message (point 7).
+ *  e.g. "New OEML Supply Enquiry — Copper (cathode)", "New OEML General Enquiry". */
 export function buildLeadEmailSubject(lead: Lead): string {
-  const type = ENQUIRY_TYPE_LABELS[lead.enquiryType]
-  const commodity = resolveCommodityLabel(lead.commodity) ?? "General"
-  return `New OEML Lead: ${type} - ${commodity}`
+  const label = ENQUIRY_SUBJECT_LABELS[lead.enquiryType]
+  const commodity = resolveCommodityLabel(lead.commodity)
+  if (commodity && COMMODITY_IN_SUBJECT.has(lead.enquiryType)) {
+    return `New OEML ${label} — ${commodity}`
+  }
+  return `New OEML ${label}`
 }
 
 type Field = { label: string; value: string | undefined }
+type Section = { heading: string; fields: Field[] }
 
-/** Ordered field list. Optional fields with no value are dropped cleanly so the
- *  output never shows "Phone: undefined" / "Destination: null". */
-function leadFields(lead: Lead): Field[] {
+/** Grouped, ordered sections. Optional fields with no value are dropped cleanly so
+ *  the output never shows "Phone: undefined" / "Destination: null". */
+function leadSections(lead: Lead): Section[] {
+  const present = (fields: Field[]) => fields.filter((f) => Boolean(f.value))
   return [
-    { label: "Reference", value: lead.reference },
-    { label: "Submitted at", value: lead.createdAt },
-    { label: "Enquiry Type", value: ENQUIRY_TYPE_LABELS[lead.enquiryType] },
-    { label: "Commodity", value: resolveCommodityLabel(lead.commodity) },
-    { label: "Name", value: lead.contact.name },
-    { label: "Company", value: lead.contact.company },
-    { label: "Email", value: lead.contact.email },
-    { label: "Phone / WhatsApp", value: lead.contact.phone },
-    { label: "Country", value: lead.contact.country },
-    { label: "Quantity", value: lead.quantity },
-    { label: "Origin", value: lead.origin },
-    { label: "Destination", value: lead.destination },
-    { label: "Requirement details", value: lead.message },
-  ].filter((f): f is Field => Boolean(f.value))
+    {
+      heading: "ENQUIRY",
+      fields: present([
+        { label: "Enquiry type", value: ENQUIRY_TYPE_LABELS[lead.enquiryType] },
+        { label: "Submitted", value: lead.createdAt },
+        { label: "Reference", value: lead.reference },
+      ]),
+    },
+    {
+      heading: "CONTACT",
+      fields: present([
+        { label: "Name", value: lead.contact.name },
+        { label: "Company", value: lead.contact.company },
+        { label: "Email", value: lead.contact.email },
+        { label: "Phone / WhatsApp", value: lead.contact.phone },
+        { label: "Country", value: lead.contact.country },
+      ]),
+    },
+    {
+      heading: "REQUIREMENT",
+      fields: present([
+        { label: "Commodity", value: resolveCommodityLabel(lead.commodity) },
+        { label: "Quantity", value: lead.quantity },
+        { label: "Origin", value: lead.origin },
+        { label: "Destination", value: lead.destination },
+        { label: "Requirement details", value: lead.message },
+      ]),
+    },
+  ].filter((s) => s.fields.length > 0)
 }
 
 function buildText(lead: Lead): string {
-  return leadFields(lead)
-    .map((f) => `${f.label}: ${f.value}`)
-    .join("\n")
+  const intro = "A new enquiry was submitted through the OEML contact form.\n"
+  const body = leadSections(lead)
+    .map((s) => {
+      const lines = s.fields.map((f) => `  ${f.label}: ${f.value}`).join("\n")
+      return `${s.heading}\n${lines}`
+    })
+    .join("\n\n")
+  return `${intro}\n${body}`
 }
 
 /*
-  Restrained, transactional, email-safe HTML: a single table, system-safe fonts,
-  minimal inline styling, no remote images, no JavaScript, no tracking pixels. This
-  is an internal operational notification, NOT marketing email, and deliberately
-  does NOT recreate the website design system. Every value is escaped.
+  Restrained, transactional, email-safe HTML: simple tables per section, system-safe
+  fonts, minimal inline styling, no remote images, no JavaScript, no tracking pixels.
+  This is an internal operational notification, NOT marketing email, and deliberately
+  does NOT recreate the website design system. Every lead value is escaped.
 */
 function buildHtml(lead: Lead): string {
-  const rows = leadFields(lead)
-    .map((f) => {
-      const label = escapeHtml(f.label)
-      // f.value is present here (leadFields filtered out empties).
-      const value = escapeHtml(f.value as string)
+  const sections = leadSections(lead)
+    .map((s) => {
+      const rows = s.fields
+        .map((f) => {
+          const label = escapeHtml(f.label)
+          const value = escapeHtml(f.value as string) // present (filtered above)
+          return (
+            `<tr>` +
+            `<td style="padding:4px 12px 4px 0;vertical-align:top;color:#555;white-space:nowrap;font-weight:bold;">${label}</td>` +
+            `<td style="padding:4px 0;vertical-align:top;color:#111;">${value}</td>` +
+            `</tr>`
+          )
+        })
+        .join("")
       return (
-        `<tr>` +
-        `<td style="padding:4px 12px 4px 0;vertical-align:top;color:#555;white-space:nowrap;font-weight:bold;">${label}</td>` +
-        `<td style="padding:4px 0;vertical-align:top;color:#111;">${value}</td>` +
-        `</tr>`
+        `<h2 style="margin:20px 0 6px;font-size:13px;letter-spacing:0.04em;color:#666;">${escapeHtml(s.heading)}</h2>` +
+        `<table style="border-collapse:collapse;">${rows}</table>`
       )
     })
     .join("")
 
   return (
     `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;">` +
-    `<p style="margin:0 0 12px;">A new enquiry was submitted through the OEML contact form.</p>` +
-    `<table style="border-collapse:collapse;">${rows}</table>` +
+    `<p style="margin:0 0 4px;">A new enquiry was submitted through the OEML contact form.</p>` +
+    sections +
     `</div>`
   )
 }

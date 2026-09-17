@@ -46,17 +46,23 @@ const minimalLead: Lead = {
 }
 
 describe("buildLeadEmailSubject", () => {
-  it("uses controlled type + catalogue commodity name", () => {
-    expect(buildLeadEmailSubject(fullLead)).toBe("New OEML Lead: Buy - Copper")
+  it("uses the enquiry-type phrase + catalogue commodity name for buy/supply", () => {
+    expect(buildLeadEmailSubject(fullLead)).toBe("New OEML Buying Requirement — Copper")
+    expect(buildLeadEmailSubject({ ...fullLead, enquiryType: "supply" })).toBe(
+      "New OEML Supply Enquiry — Copper"
+    )
   })
 
-  it("falls back to 'General' when there is no commodity", () => {
-    expect(buildLeadEmailSubject(minimalLead)).toBe("New OEML Lead: General - General")
+  it("omits the commodity for general/partnership enquiries", () => {
+    expect(buildLeadEmailSubject(minimalLead)).toBe("New OEML General Enquiry")
+    expect(
+      buildLeadEmailSubject({ ...fullLead, enquiryType: "partnership" })
+    ).toBe("New OEML Partnership Enquiry")
   })
 
   it("maps the 'other' sentinel to a controlled 'Other' label", () => {
     expect(buildLeadEmailSubject({ ...fullLead, commodity: "other" })).toBe(
-      "New OEML Lead: Buy - Other"
+      "New OEML Buying Requirement — Other"
     )
   })
 
@@ -89,16 +95,19 @@ describe("buildLeadEmail — complete lead", () => {
     expect(withReply.replyTo).toBe("ada@example.com")
   })
 
-  it("renders all present fields in the plain-text body", () => {
+  it("renders grouped sections with all present fields in the plain-text body", () => {
+    expect(msg.text).toContain("ENQUIRY")
+    expect(msg.text).toContain("CONTACT")
+    expect(msg.text).toContain("REQUIREMENT")
+    expect(msg.text).toContain("Enquiry type: Buy")
+    expect(msg.text).toContain("Submitted: 2026-09-16T10:00:00.000Z")
     expect(msg.text).toContain("Reference: OEML-2026-ABC234")
-    expect(msg.text).toContain("Submitted at: 2026-09-16T10:00:00.000Z")
-    expect(msg.text).toContain("Enquiry Type: Buy")
-    expect(msg.text).toContain("Commodity: Copper")
     expect(msg.text).toContain("Name: Ada Lovelace")
     expect(msg.text).toContain("Company: Analytical Engines")
     expect(msg.text).toContain("Email: ada@example.com")
     expect(msg.text).toContain("Phone / WhatsApp: +44 20 7946 0000")
     expect(msg.text).toContain("Country: United Kingdom")
+    expect(msg.text).toContain("Commodity: Copper")
     expect(msg.text).toContain("Quantity: 500 MT")
     expect(msg.text).toContain("Origin: Chile")
     expect(msg.text).toContain("Destination: Rotterdam")
