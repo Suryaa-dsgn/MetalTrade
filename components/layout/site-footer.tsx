@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import { Container } from "@/components/layout/container"
-import { Logo } from "@/components/brand/logo"
+import { BrandWordmark } from "@/components/brand/brand-wordmark"
 import { BodyS, Label } from "@/components/ui/typography"
 import { footerGroups, legalLinks } from "@/data/config/navigation"
 import { siteConfig } from "@/data/config/site"
@@ -19,9 +19,9 @@ export function SiteFooter() {
       <Container className="py-16">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Logo />
+            <BrandWordmark variant="footer" />
             {/* Client-confirmed positioning (Phase 9B). */}
-            <BodyS className="mt-3 max-w-[36ch] text-muted-foreground">
+            <BodyS className="mt-4 max-w-[36ch] text-muted-foreground">
               {siteConfig.positioning}
             </BodyS>
           </div>

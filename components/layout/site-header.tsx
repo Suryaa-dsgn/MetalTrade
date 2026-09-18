@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Container } from "@/components/layout/container"
-import { Logo } from "@/components/brand/logo"
+import { BrandWordmark } from "@/components/brand/brand-wordmark"
 import { MainNav } from "@/components/layout/main-nav"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { buttonVariants } from "@/components/ui/button"
@@ -57,8 +57,8 @@ export function SiteHeader() {
           : "border-border bg-background"
       )}
     >
-      <Container className="flex h-16 items-center justify-between gap-4">
-        <Logo tone={tone} />
+      <Container className="flex h-20 items-center justify-between gap-4">
+        <BrandWordmark tone={tone} />
         <div className="flex items-center gap-2">
           <MainNav tone={tone} className="hidden lg:block" />
           <Link
