@@ -52,8 +52,11 @@ export function BrandWordmark({
         href="/"
         aria-label={`${siteConfig.legalName} — Home`}
         className={cn(
-          "inline-flex flex-col justify-center rounded-sm font-semibold tracking-tight leading-[1.0]",
-          "text-[clamp(1.375rem,1.05rem+1.1vw,1.75rem)]",
+          "inline-flex flex-col justify-center rounded-sm font-semibold tracking-tight",
+          // `leading-*` must come after `text-[clamp(...)]`: the class merger
+          // treats the arbitrary text size as conflicting with line-height and
+          // keeps whichever is last, so ordering here is load-bearing.
+          "text-[clamp(1.375rem,1.05rem+1.1vw,1.75rem)] leading-[0.92]",
           "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
           className
         )}
