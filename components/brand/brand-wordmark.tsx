@@ -75,10 +75,10 @@ export function BrandWordmark({
         className
       )}
     >
-      {/* Logo box height ~63–69% of the 64px navbar. The SVG carries ~18%
-          internal vertical whitespace, so the visible mark sits comfortably
-          inside this box without touching the navbar edges. */}
-      <span className="relative block h-10 sm:h-11">
+      {/* Logo box height ~60–70% of the 80px (h-20) navbar. The SVG carries
+          ~18% internal vertical whitespace, so the visible mark sits
+          comfortably inside this box without touching the navbar edges. */}
+      <span className="relative block h-12 sm:h-14">
         {/* Primary (light nav) — in flow, so it sizes the box in both states. */}
         <Image
           src={LOGO_PRIMARY}
