@@ -1,39 +1,39 @@
+import Image from "next/image"
 import Link from "next/link"
 
 import { cn } from "@/lib/utils"
-import { siteConfig } from "@/data/config/site"
 
 /*
-  Brand wordmark — the single home for OEML's identity mark in the header and
-  footer. Text-only for now. Three presentations from one component:
+  Brand lockup — the single home for OEML's identity mark in the header and
+  footer. Now backed by the real logo assets (horizontal full lockup, SVG):
 
-    header (light nav / scrolled) → a single line inside a subtle light frame:
-        Oriental Energy and Minerals LTD.   (brand blue → darker-blue text)
-    header (dark nav / hero overlay, tone="light") → the same line inside a
-        subtle translucent-dark frame with warm-white text.
-    footer → a tight two-line branding anchor:
-        Oriental Energy
-        and Minerals Ltd
+    header (dark / hero overlay, tone="light") → white logo   (#F8F8F8)
+    header (light / scrolled)                  → primary logo (#235CD7 cobalt)
+    footer                                     → primary logo
 
-  Navbar framing note: the two header states use a restrained "framed wordmark"
-  container (translucent surface, hairline border, soft shadow, light backdrop
-  blur, rounded-md). The light-state text uses a soft primary → primary-hover
-  gradient. Both the frame and the gradient text are deliberate, client-approved
-  refinements to the navbar mark and are the intentional exception to the
-  Design System §21 "no glassmorphism / no gradient text" guardrail — kept
-  subtle and scoped to the navbar wordmark only. The footer keeps solid tokens.
+  The two header variants are stacked in one fixed-height box and cross-faded by
+  opacity, so switching white ↔ primary on scroll is smooth and causes ZERO
+  layout shift (the in-flow primary image always sizes the box; the white image
+  is an absolute overlay). Height is constrained and width is auto, so the logo
+  never stretches, distorts, or changes the navbar height.
 
-  The visible text is aria-hidden and the link carries a single accessible label,
-  so screen readers hear the destination once. The navbar mark drops the "LTD."
-  suffix from the label so it reads naturally; the footer keeps the full legal
-  name in its own label.
+  SVGs are served with `unoptimized` (the Next image optimizer does not process
+  SVG, and this keeps them crisp without any global next.config change). One
+  image carries the alt text; its cross-fade twin is decorative (alt="",
+  aria-hidden) so the link exposes the company name once.
 
-  TODO(brand): when the licensed logo/mark arrives, swap the inner markup here
-  for the SVG. SiteHeader / SiteFooter consume `variant` + `tone` only and do
-  not need to change. `siteConfig.name` remains the working title.
+  Assets: public/Logo/oeml-full-horizontal-{primary,white}.svg (clean copies of
+  public/Logo/Full Logo_Horizontal/Full Logo_{Primary,White}.svg).
 */
 
 type BrandWordmarkVariant = "header" | "footer"
+
+const LOGO_PRIMARY = "/Logo/oeml-full-horizontal-primary.svg"
+const LOGO_WHITE = "/Logo/oeml-full-horizontal-white.svg"
+// Intrinsic aspect ratios (from each SVG's viewBox).
+const PRIMARY_DIMS = { width: 1013, height: 244 }
+const WHITE_DIMS = { width: 1012, height: 252 }
+const ALT = "Oriental Energy and Minerals Ltd"
 
 export function BrandWordmark({
   variant = "header",
@@ -50,78 +50,60 @@ export function BrandWordmark({
     return (
       <Link
         href="/"
-        aria-label={`${siteConfig.legalName} — Home`}
         className={cn(
-          "inline-flex flex-col justify-center rounded-sm font-semibold tracking-tight",
-          // `leading-*` must come after `text-[clamp(...)]`: the class merger
-          // treats the arbitrary text size as conflicting with line-height and
-          // keeps whichever is last, so ordering here is load-bearing.
-          "text-[clamp(1.375rem,1.05rem+1.1vw,1.75rem)] leading-[0.92]",
-          "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+          "inline-flex rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
           className
         )}
       >
-        <span aria-hidden="true">
-          <span
-            className={cn(
-              "block font-bold",
-              isLight ? "text-mineral-foreground" : "text-primary"
-            )}
-          >
-            Oriental Energy
-          </span>
-          <span
-            className={cn(
-              "block font-bold",
-              isLight ? "text-mineral-foreground" : "text-primary-hover"
-            )}
-          >
-            and Minerals{" "}
-            <span
-              className={cn(
-                "text-[0.78em] font-medium tracking-normal",
-                isLight ? "text-mineral-foreground/85" : "text-primary/90"
-              )}
-            >
-              Ltd
-            </span>
-          </span>
-        </span>
+        <Image
+          src={LOGO_PRIMARY}
+          {...PRIMARY_DIMS}
+          alt={ALT}
+          unoptimized
+          className="block h-10 w-auto sm:h-12"
+        />
       </Link>
     )
   }
 
-  // Header: single-line framed wordmark.
+  // Header: fixed-height box holding both logo variants, cross-faded by state.
   return (
     <Link
       href="/"
-      aria-label="Oriental Energy and Minerals — Home"
       className={cn(
-        // Subtle premium frame — restrained, not a chip or button.
-        "inline-flex items-center rounded-md border px-2.5 py-1.5 backdrop-blur-sm sm:px-3.5 sm:py-2",
-        "transition-colors duration-300",
-        "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-        isLight
-          ? // Dark / hero overlay: translucent-dark glass frame, warm-white text.
-            "border-white/15 bg-mineral/25 shadow-[0_2px_10px_hsl(210_28%_10%/0.18)]"
-          : // Light / scrolled: soft light frame.
-            "border-border/70 bg-surface/70 shadow-sm",
+        "inline-flex items-center rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         className
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "whitespace-nowrap font-semibold leading-none tracking-tight",
-          "text-[clamp(0.75rem,0.55rem+0.9vw,1.25rem)]",
-          isLight
-            ? "text-mineral-foreground"
-            : // Soft brand blue → darker-blue gradient (client-approved nav treatment).
-              "bg-gradient-to-r from-primary to-primary-hover bg-clip-text text-transparent"
-        )}
-      >
-        Oriental Energy and Minerals{" "}
-        <span className="text-[0.82em]">LTD.</span>
+      {/* Logo box height ~60–70% of the 80px (h-20) navbar. The SVG carries
+          ~18% internal vertical whitespace, so the visible mark sits
+          comfortably inside this box without touching the navbar edges. */}
+      <span className="relative block h-12 sm:h-14">
+        {/* Primary (light nav) — in flow, so it sizes the box in both states. */}
+        <Image
+          src={LOGO_PRIMARY}
+          {...PRIMARY_DIMS}
+          alt={ALT}
+          priority
+          unoptimized
+          className={cn(
+            "block h-full w-auto transition-opacity duration-300",
+            isLight ? "opacity-0" : "opacity-100"
+          )}
+        />
+        {/* White (dark hero) — absolute overlay, decorative twin. */}
+        <Image
+          src={LOGO_WHITE}
+          {...WHITE_DIMS}
+          alt=""
+          aria-hidden="true"
+          priority
+          unoptimized
+          className={cn(
+            "absolute inset-0 block h-full w-auto transition-opacity duration-300",
+            isLight ? "opacity-100" : "opacity-0"
+          )}
+        />
       </span>
     </Link>
   )
