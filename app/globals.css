@@ -263,3 +263,64 @@
     }
   }
 }
+
+/*
+  Market ticker tape (homepage). A seamless CSS-only infinite marquee: the track
+  holds two identical commodity groups and translates by -50% (exactly one group
+  width), so the loop restarts with no visible jump. `padding-inline-end` on each
+  group makes the spacing across the seam equal to the inter-item spacing.
+
+  No JS: the component stays a Server Component. Motion pauses on hover and when
+  keyboard focus enters the feed. Reduced motion disables the scroll entirely and
+  shows the real (first) group statically from the start. The duplicate group is
+  `inert` + `aria-hidden`, so it is neither focusable nor announced.
+*/
+@layer components {
+  .market-tape-viewport {
+    /* Soft edge fade so items enter/leave cleanly instead of hard-clipping. */
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 1.5rem,
+      #000 calc(100% - 1.5rem),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 1.5rem,
+      #000 calc(100% - 1.5rem),
+      transparent
+    );
+  }
+  .market-tape-track {
+    display: flex;
+    width: max-content;
+    animation: market-tape var(--market-tape-duration, 48s) linear infinite;
+    will-change: transform;
+  }
+  .market-tape-group {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    padding-inline-end: 2.5rem;
+  }
+  @keyframes market-tape {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  .market-tape-viewport:hover .market-tape-track,
+  .market-tape-viewport:focus-within .market-tape-track {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .market-tape-track {
+      animation: none;
+      transform: none;
+    }
+  }
+}
