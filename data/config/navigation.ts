@@ -34,12 +34,20 @@ export const footerGroups: { title: string; items: NavItem[] }[] = [
   },
 ]
 
-// Legal routes are built in Phase 11; links resolve then.
-export const legalLinks: NavItem[] = [
+/**
+ * Footer legal links. Only items with client-approved content navigate; an item
+ * marked `disabled` stays visible but renders as non-clickable "coming soon"
+ * text (no dead route). Cookies/Accessibility are omitted until needed.
+ *
+ * Privacy is live at /privacy. Terms & Conditions is pending the client's
+ * document: when it arrives, create /terms and drop the `disabled` flag to turn
+ * this back into a normal link (its `href` already points at the future route).
+ */
+export type LegalLink = NavItem & { disabled?: boolean }
+
+export const legalLinks: LegalLink[] = [
   { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
-  { label: "Cookies", href: "/cookies" },
-  { label: "Accessibility", href: "/accessibility" },
+  { label: "Terms & Conditions", href: "/terms", disabled: true },
 ]
 
 /**

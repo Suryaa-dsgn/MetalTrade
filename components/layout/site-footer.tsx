@@ -64,16 +64,29 @@ export function SiteFooter() {
             © {year} {siteConfig.legalName}.
           </BodyS>
           <ul className="flex flex-wrap gap-x-5 gap-y-2">
-            {legalLinks.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="rounded-sm text-body-s text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+            {legalLinks.map((item) =>
+              item.disabled ? (
+                // Visible but not yet available (no route): plain non-clickable
+                // text, matching the row style.
+                <li key={item.href}>
+                  <span
+                    aria-disabled="true"
+                    className="text-body-s text-muted-foreground"
+                  >
+                    {item.label}
+                  </span>
+                </li>
+              ) : (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="rounded-sm text-body-s text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              )
+            )}
           </ul>
         </div>
       </Container>
