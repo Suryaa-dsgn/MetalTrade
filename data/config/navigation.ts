@@ -35,19 +35,16 @@ export const footerGroups: { title: string; items: NavItem[] }[] = [
 ]
 
 /**
- * Footer legal links. Only items with client-approved content navigate; an item
- * marked `disabled` stays visible but renders as non-clickable "coming soon"
- * text (no dead route). Cookies/Accessibility are omitted until needed.
- *
- * Privacy is live at /privacy. Terms & Conditions is pending the client's
- * document: when it arrives, create /terms and drop the `disabled` flag to turn
- * this back into a normal link (its `href` already points at the future route).
+ * Footer legal links. Only pages with client-approved content are linked:
+ * Privacy at /privacy and Terms & Conditions at /terms. The optional `disabled`
+ * flag (renders an item as non-clickable text) is retained for any future
+ * pending page. Cookies/Accessibility are omitted until needed.
  */
 export type LegalLink = NavItem & { disabled?: boolean }
 
 export const legalLinks: LegalLink[] = [
   { label: "Privacy", href: "/privacy" },
-  { label: "Terms & Conditions", href: "/terms", disabled: true },
+  { label: "Terms & Conditions", href: "/terms" },
 ]
 
 /**
