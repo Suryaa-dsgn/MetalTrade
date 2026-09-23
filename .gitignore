@@ -50,3 +50,7 @@ next-env.d.ts
 design/asset-originals/**/*.png
 design/asset-originals/**/*.jpg
 design/asset-originals/**/*.jpeg
+
+# client-supplied legal source documents — kept local only, never tracked.
+# The published /privacy and /terms pages are the shipped source of truth.
+docs/*.docx
