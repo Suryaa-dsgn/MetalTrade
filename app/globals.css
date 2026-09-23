@@ -203,6 +203,9 @@
   }
   html {
     @apply font-sans antialiased;
+    /* Smooth in-page anchor navigation (e.g. the /terms sidebar). The global
+       reduced-motion rule below overrides this to `auto`. */
+    scroll-behavior: smooth;
   }
   body {
     @apply bg-background text-foreground;

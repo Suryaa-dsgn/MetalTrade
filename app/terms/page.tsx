@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 
 import { Section } from "@/components/layout/section"
 import { H1, H3, H4, Body, BodyS } from "@/components/ui/typography"
+import { TermsNav } from "@/components/legal/terms-nav"
 
 /*
   Terms of Service page.
@@ -12,9 +13,13 @@ import { H1, H3, H4, Body, BodyS } from "@/components/ui/typography"
   21 sections and their subsection numbering, headings, ordered/bulleted lists,
   legal wording, defined terms, entity naming, dates, and the contact details
   are preserved exactly. Only web-presentation formatting was applied (headings,
-  paragraphs, lists, spacing, and in-page anchor links for the table of
-  contents, since the source TOC linked to an external template URL). No clauses
-  were added, removed, or reinterpreted.
+  paragraphs, lists, spacing, and in-page anchor links). No clauses were added,
+  removed, or reinterpreted.
+
+  Layout: the section navigation lives in a sticky sidebar (a collapsible "On
+  this page" panel below `lg`) via the client `TermsNav`; the legal content stays
+  server-rendered in the reading column. Each section carries `scroll-mt` so
+  anchor jumps sit below the sticky header.
 */
 
 export const metadata: Metadata = {
@@ -26,35 +31,10 @@ export const metadata: Metadata = {
 const listClass =
   "mt-4 list-disc space-y-2 pl-6 text-body text-foreground marker:text-muted-foreground"
 
-/** Table of contents: section number → heading (anchors to #s{n}). */
-const toc: { n: number; title: string }[] = [
-  { n: 1, title: "Definitions and Interpretation" },
-  { n: 2, title: "Acceptance of Terms" },
-  { n: 3, title: "Description of Services" },
-  { n: 4, title: "User Accounts and Registration" },
-  { n: 5, title: "User Responsibilities and Obligations" },
-  { n: 6, title: "Service Availability and Limitations" },
-  { n: 7, title: "Pricing and Payment Terms" },
-  { n: 8, title: "Delivery Terms and Conditions" },
-  { n: 9, title: "Liability and Risk Allocation" },
-  { n: 10, title: "Intellectual Property Rights" },
-  { n: 11, title: "Prohibited Uses" },
-  { n: 12, title: "Marketplace and Matching Mechanics" },
-  { n: 13, title: "Envoy Terms" },
-  { n: 14, title: "Ratings, Reviews and Account Standing" },
-  { n: 15, title: "Indemnification" },
-  { n: 16, title: "App Store Compliance" },
-  { n: 17, title: "Termination" },
-  { n: 18, title: "Dispute Resolution and Governing Law" },
-  { n: 19, title: "Force Majeure" },
-  { n: 20, title: "Modifications to Terms" },
-  { n: 21, title: "Contact Information" },
-]
-
 export default function TermsPage() {
   return (
-    <Section containerWidth="reading" spacing="loose">
-      <article>
+    <Section spacing="loose">
+      <article className="mx-auto max-w-[64rem]">
         <header>
           <H1>Terms of Service</H1>
           <BodyS className="mt-4 text-muted-foreground">
@@ -62,25 +42,15 @@ export default function TermsPage() {
           </BodyS>
         </header>
 
-        {/* Table of contents (in-page anchors). */}
-        <nav aria-label="Table of contents" className="mt-8">
-          <ol className="space-y-2 text-body">
-            {toc.map((s) => (
-              <li key={s.n}>
-                <a
-                  href={`#s${s.n}`}
-                  className="rounded-sm text-primary underline underline-offset-2 hover:text-primary-hover"
-                >
-                  {s.n}. {s.title}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
+        {/* Sticky section navigation (sidebar on lg, collapsible below) beside
+            the reading-width legal content. */}
+        <div className="mt-10 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-10">
+          <TermsNav />
 
-        <div className="mt-12 space-y-10">
+          <div className="mt-6 max-w-[var(--container-reading)] lg:mt-0 lg:min-w-0">
+            <div className="space-y-10">
           {/* 1 */}
-          <section id="s1">
+          <section id="s1" className="scroll-mt-24">
             <H3 as="h2">1. Definitions and Interpretation</H3>
             <Body className="mt-4">
               In these Terms of Service, the following definitions apply:
@@ -178,7 +148,7 @@ export default function TermsPage() {
           </section>
 
           {/* 2 */}
-          <section id="s2">
+          <section id="s2" className="scroll-mt-24">
             <H3 as="h2">2. Acceptance of Terms</H3>
             <Body className="mt-4">
               By accessing, registering for, or using any of our Services, you
@@ -201,7 +171,7 @@ export default function TermsPage() {
           </section>
 
           {/* 3 */}
-          <section id="s3">
+          <section id="s3" className="scroll-mt-24">
             <H3 as="h2">3. Description of Services</H3>
             <Body className="mt-4">
               A licensed mineral aggregator connecting physical commodity supply
@@ -217,7 +187,7 @@ export default function TermsPage() {
           </section>
 
           {/* 4 */}
-          <section id="s4">
+          <section id="s4" className="scroll-mt-24">
             <H3 as="h2">4. User Accounts and Registration</H3>
             <Body className="mt-4">
               To access our Services, you must create an account by providing
@@ -245,7 +215,7 @@ export default function TermsPage() {
           </section>
 
           {/* 5 */}
-          <section id="s5">
+          <section id="s5" className="scroll-mt-24">
             <H3 as="h2">5. User Responsibilities and Obligations</H3>
             <Body className="mt-4">
               As a user of our Services, you agree to:
@@ -278,7 +248,7 @@ export default function TermsPage() {
           </section>
 
           {/* 6 */}
-          <section id="s6">
+          <section id="s6" className="scroll-mt-24">
             <H3 as="h2">6. Service Availability and Limitations</H3>
             <Body className="mt-4">
               While we strive to provide reliable services, we cannot guarantee
@@ -299,7 +269,7 @@ export default function TermsPage() {
           </section>
 
           {/* 7 */}
-          <section id="s7">
+          <section id="s7" className="scroll-mt-24">
             <H3 as="h2">7. Pricing and Payment Terms</H3>
 
             <H4 as="h3" className="mt-6">7.1 Pricing Structure</H4>
@@ -331,7 +301,7 @@ export default function TermsPage() {
           </section>
 
           {/* 8 */}
-          <section id="s8">
+          <section id="s8" className="scroll-mt-24">
             <H3 as="h2">8. Delivery Terms and Conditions</H3>
 
             <H4 as="h3" className="mt-6">8.1 Delivery Timeframes</H4>
@@ -357,7 +327,7 @@ export default function TermsPage() {
           </section>
 
           {/* 9 */}
-          <section id="s9">
+          <section id="s9" className="scroll-mt-24">
             <H3 as="h2">9. Liability and Risk Allocation</H3>
 
             <H4 as="h3" className="mt-6">9.1 Limitation of Liability</H4>
@@ -391,7 +361,7 @@ export default function TermsPage() {
           </section>
 
           {/* 10 */}
-          <section id="s10">
+          <section id="s10" className="scroll-mt-24">
             <H3 as="h2">10. Intellectual Property Rights</H3>
             <Body className="mt-4">
               All intellectual property rights in our Platform, Services,
@@ -413,7 +383,7 @@ export default function TermsPage() {
           </section>
 
           {/* 11 */}
-          <section id="s11">
+          <section id="s11" className="scroll-mt-24">
             <H3 as="h2">11. Prohibited Uses</H3>
             <Body className="mt-4">
               You may not use our Services for shipping or handling:
@@ -444,7 +414,7 @@ export default function TermsPage() {
           </section>
 
           {/* 12 */}
-          <section id="s12">
+          <section id="s12" className="scroll-mt-24">
             <H3 as="h2">12. Marketplace and Matching Mechanics</H3>
 
             <H4 as="h3" className="mt-6">12.1 Platform Nature</H4>
@@ -460,7 +430,7 @@ export default function TermsPage() {
           </section>
 
           {/* 13 */}
-          <section id="s13">
+          <section id="s13" className="scroll-mt-24">
             <H3 as="h2">13. Envoy Terms</H3>
             <Body className="mt-4">
               This Section applies to all envoys who register on or use Envoy, in
@@ -512,7 +482,7 @@ export default function TermsPage() {
           </section>
 
           {/* 14 */}
-          <section id="s14">
+          <section id="s14" className="scroll-mt-24">
             <H3 as="h2">14. Ratings, Reviews and Account Standing</H3>
 
             <H4 as="h3" className="mt-6">14.1 Mutual Ratings</H4>
@@ -543,7 +513,7 @@ export default function TermsPage() {
           </section>
 
           {/* 15 */}
-          <section id="s15">
+          <section id="s15" className="scroll-mt-24">
             <H3 as="h2">15. Indemnification</H3>
             <Body className="mt-4">
               To the maximum extent permitted by Nigerian law, you agree to
@@ -580,7 +550,7 @@ export default function TermsPage() {
           </section>
 
           {/* 16 */}
-          <section id="s16">
+          <section id="s16" className="scroll-mt-24">
             <H3 as="h2">16. App Store Compliance</H3>
             <Body className="mt-4">
               Our Envoy and Voyager applications are distributed through the Apple
@@ -599,7 +569,7 @@ export default function TermsPage() {
           </section>
 
           {/* 17 */}
-          <section id="s17">
+          <section id="s17" className="scroll-mt-24">
             <H3 as="h2">17. Termination</H3>
 
             <H4 as="h3" className="mt-6">17.1 Termination by You</H4>
@@ -645,7 +615,7 @@ export default function TermsPage() {
           </section>
 
           {/* 18 */}
-          <section id="s18">
+          <section id="s18" className="scroll-mt-24">
             <H3 as="h2">18. Dispute Resolution and Governing Law</H3>
 
             <H4 as="h3" className="mt-6">18.1 Governing Law</H4>
@@ -692,7 +662,7 @@ export default function TermsPage() {
           </section>
 
           {/* 19 */}
-          <section id="s19">
+          <section id="s19" className="scroll-mt-24">
             <H3 as="h2">19. Force Majeure</H3>
             <Body className="mt-4">
               Neither party shall be liable for any failure or delay in
@@ -711,7 +681,7 @@ export default function TermsPage() {
           </section>
 
           {/* 20 */}
-          <section id="s20">
+          <section id="s20" className="scroll-mt-24">
             <H3 as="h2">20. Modifications to Terms</H3>
             <Body className="mt-4">
               We reserve the right to modify these Terms of Service at any time.
@@ -730,7 +700,7 @@ export default function TermsPage() {
           </section>
 
           {/* 21 */}
-          <section id="s21">
+          <section id="s21" className="scroll-mt-24">
             <H3 as="h2">21. Contact Information</H3>
             <Body className="mt-4">
               For questions, concerns, or disputes regarding these Terms of
@@ -774,11 +744,14 @@ export default function TermsPage() {
               .
             </Body>
           </section>
-        </div>
+            </div>
 
-        <BodyS className="mt-12 border-t border-border pt-6 text-muted-foreground">
-          &copy; 2026 Oriental Energy &amp; Minerals Limited. All rights reserved.
-        </BodyS>
+            <BodyS className="mt-12 border-t border-border pt-6 text-muted-foreground">
+              &copy; 2026 Oriental Energy &amp; Minerals Limited. All rights
+              reserved.
+            </BodyS>
+          </div>
+        </div>
       </article>
     </Section>
   )
