@@ -6,13 +6,15 @@ import { AssetImage } from "@/components/editorial/asset-image"
 import { PriceChange } from "@/components/market/price-change"
 import { buttonVariants } from "@/components/ui/button"
 import { MetalIcon } from "@/components/ui/domain-icon"
-import { H3, Label } from "@/components/ui/typography"
+import { H3 } from "@/components/ui/typography"
 import { formatPrice } from "@/lib/formatters"
 
 /*
   Editorial metal card (Design System §12.2). Image occupies a meaningful area;
   price + movement align on one row. Shows only general physical forms — no
-  invented availability, purity, or volume. Prices are indicative sample data.
+  invented availability, purity, or volume. The card carries no provenance line:
+  price provenance is enforced by the data layer (unavailable benchmarks render
+  an em dash), and section-level copy provides any indicative-data context.
 */
 export function MetalCard({ metal }: { metal: MetalSummary }) {
   const q = metal.quote
@@ -44,7 +46,6 @@ export function MetalCard({ metal }: { metal: MetalSummary }) {
           </span>
           {q.price !== null ? <PriceChange change={q.change24h} /> : null}
         </div>
-        <Label className="mt-1">Indicative sample · not live</Label>
 
         <div className="mt-5 flex flex-wrap gap-2 pt-1">
           <Link

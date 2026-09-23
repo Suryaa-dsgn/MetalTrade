@@ -16,17 +16,20 @@ import {
   marquee, so no pause control is needed. Scrolls horizontally on small screens.
   It is NOT the only access to data (the metal cards below repeat it).
 
-  MOCK DATA: labelled as indicative sample, never live.
+  The ticker makes no provenance claim of its own: each value is whatever the
+  data layer resolved (real, unavailable, etc.), and provenance/freshness is
+  represented in the data-driven surfaces (e.g. the Markets page). Unavailable
+  benchmarks render an em dash, never a fabricated figure.
 */
 function accessibleLabel(metal: MetalSummary): string {
   const q = metal.quote
   if (q.price === null) {
-    return `${metal.name}, sample price unavailable.`
+    return `${metal.name}, price unavailable.`
   }
   const dir = changeDirection(q.change24h)
   const move =
     dir === "flat" ? "unchanged" : `${dir} ${formatChangePercent(q.change24h)}`
-  return `${metal.name}, indicative sample ${formatPrice(q.price)} ${q.currency} per ${expandUnit(q.unit)}, ${move}.`
+  return `${metal.name}, ${formatPrice(q.price)} ${q.currency} per ${expandUnit(q.unit)}, ${move}.`
 }
 
 export function MarketTicker({ metals }: { metals: MetalSummary[] }) {
@@ -38,9 +41,6 @@ export function MarketTicker({ metals }: { metals: MetalSummary[] }) {
       className="border-y border-border bg-surface"
     >
       <Container className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
-        <span className="shrink-0 rounded-pill bg-warning-soft px-2.5 py-1 text-label uppercase tracking-label text-warning">
-          Indicative sample · not live
-        </span>
         <ul className="flex min-w-0 flex-1 gap-5 overflow-x-auto">
           {metals.map((metal) => {
             const q = metal.quote

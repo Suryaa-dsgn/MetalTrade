@@ -215,4 +215,28 @@ describe("market service (registry-driven mixed source)", () => {
     // @ts-expect-error restore
     process.env.NODE_ENV = prev
   })
+
+  it("production shows display-gated (routing:sample) benchmarks as Unavailable, never sample", async () => {
+    const prev = process.env.NODE_ENV
+    // @ts-expect-error test override
+    process.env.NODE_ENV = "production"
+    getLatest.mockResolvedValue(goldResult())
+    const svc = await freshService()
+    const { data } = await svc.getMarketTable()
+
+    // Gold (routing:live, display-approved) is unaffected — still live.
+    expect(data.find((r) => r.slug === "gold")!.source).toBe("live")
+    // Copper & Lithium (routing:sample, display-gated) must NOT leak sample
+    // values into production; they are Unavailable with no price.
+    for (const slug of ["copper", "lithium"]) {
+      const row = data.find((r) => r.slug === slug)!
+      expect(row.source).toBe("unavailable")
+      expect(row.status).toBe("unavailable")
+      expect(row.price).toBeNull()
+    }
+    // No production row is ever presented as sample.
+    expect(data.some((r) => r.source === "sample")).toBe(false)
+    // @ts-expect-error restore
+    process.env.NODE_ENV = prev
+  })
 })

@@ -384,7 +384,12 @@ async function resolveQuotes(catalogue: Metal[]): Promise<{
         })
       }
     } else if (cfg.routing === "sample") {
-      if (metal.symbol) {
+      // Sample fixtures are development-only. Production must never present
+      // sample/mock values as market data, so a display-gated ("sample")
+      // benchmark is Unavailable in production — it only becomes routable once
+      // its real feed is display-approved (routing:"live"). In dev/test the
+      // labelled sample fixture is still served for the mixed-source demo.
+      if (!isProd && metal.symbol) {
         providerId = "mock"
         providerSymbol = metal.symbol
       }

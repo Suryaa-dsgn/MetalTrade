@@ -32,7 +32,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="What we trade"
           title="Minerals and commodities across precious, base, battery, and energy categories"
-          lead="Indicative sample benchmarks shown below are for demonstration only, not live prices. Forms and specifications are confirmed per enquiry."
+          lead="Market benchmarks for the commodities we trade, shown for context. Forms and specifications are confirmed per enquiry."
         />
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {metals.map((metal) => (
