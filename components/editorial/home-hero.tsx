@@ -46,8 +46,8 @@ export function HomeHero() {
             with vetted demand.
           </Display>
           <Lead className="mt-5 max-w-[48ch] text-mineral-foreground/85">
-            We aggregate physical commodities from reviewed suppliers and
-            coordinate inspection, freight, and origin logistics through to
+            We aggregate physical commodities from reviewed suppliers;
+            coordinating inspection, freight, and origin logistics, through to
             vetted corporate and institutional buyers.
           </Lead>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">

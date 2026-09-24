@@ -19,9 +19,9 @@ export function LogisticsHero() {
           <Label>Trade &amp; logistics</Label>
           <Display className="mt-4">From source to destination</Display>
           <Lead className="mt-5">
-            Coordination of inspection, freight, and origin customs, aligned to
-            each transaction and the agreed Incoterm. Customs at the destination
-            is handled by the buyer.
+            Coordinating inspection, freight, and origin customs; aligning each
+            transaction with the agreed Incoterm. Customs at the destination is
+            handled by the buyer.
           </Lead>
           <div className="mt-8">
             <Link
