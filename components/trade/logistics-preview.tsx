@@ -47,7 +47,7 @@ export function LogisticsPreview() {
         <SectionHeading
           eyebrow="Trade & logistics"
           title="From source to destination"
-          lead="Movement is coordinated across supported modes where agreed in the transaction. Specific lanes and capabilities are confirmed per trade."
+          lead="Coordinating inspection, freight, and origin customs; aligning each transaction with the agreed Incoterm. Customs at the destination is handled by the buyer."
         />
 
         <ul className="mt-6 flex flex-wrap gap-2">
